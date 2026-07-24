@@ -23,6 +23,7 @@ import {
   Receipt,
   CreditCard,
   X,
+  Info,
 } from 'lucide-react';
 import patientApi from '../../api/patientApi';
 import departmentApi from '../../api/departmentApi';
@@ -122,11 +123,15 @@ export default function BookAppointment() {
 
   // Fetch available slots when doctor and date change: GET /api/appointments/available-slots
   useEffect(() => {
-    if (selectedDocId && selectedDate) {
+    const activeDate = appointmentDate && appointmentDate.includes('T')
+      ? appointmentDate.split('T')[0]
+      : selectedDate;
+
+    if (selectedDocId && activeDate) {
       const fetchSlots = async () => {
         setFetchingSlots(true);
         try {
-          const res = await appointmentApi.getAvailableSlots(selectedDocId, selectedDate);
+          const res = await appointmentApi.getAvailableSlots(selectedDocId, activeDate);
           setAvailableSlots(res.data || []);
         } catch (err) {
           console.error(err);
@@ -136,8 +141,10 @@ export default function BookAppointment() {
         }
       };
       fetchSlots();
+    } else {
+      setAvailableSlots([]);
     }
-  }, [selectedDocId, selectedDate]);
+  }, [selectedDocId, appointmentDate, selectedDate]);
 
   // Load all patients automatically on step 1
   useEffect(() => {
@@ -639,6 +646,25 @@ export default function BookAppointment() {
       {/* ================= PAGE MODE 1: BOOK NEW APPOINTMENT ================= */}
       {activePageMode === 'book' && (
         <div className="max-w-3xl space-y-6">
+          {/* Informational Callout */}
+          <div className="rounded-2xl border border-blue-100 bg-blue-50/60 p-4 text-xs text-blue-900 flex items-start gap-3 shadow-xs">
+            <Info className="h-4 w-4 text-blue-600 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="font-bold text-sm text-blue-900">Walk-in Desk Appointment Booking</p>
+              <p className="text-slate-600 mt-0.5 leading-relaxed">
+                Use this screen to create direct in-person appointments for walk-in patients at the receptionist desk. 
+                Online appointment requests submitted by patients are reviewed and approved under{' '}
+                <button
+                  type="button"
+                  onClick={() => setActivePageMode('manage')}
+                  className="font-bold text-blue-600 underline hover:text-blue-800"
+                >
+                  Approve & Manage
+                </button>.
+              </p>
+            </div>
+          </div>
+
           {/* Stepper Header */}
           <div className="flex items-center gap-4 border-b border-slate-200 pb-4">
             <div className={`flex items-center gap-2 text-sm font-semibold ${step >= 1 ? 'text-blue-600' : 'text-slate-400'}`}>
@@ -727,6 +753,19 @@ export default function BookAppointment() {
                       <p className="text-xs text-slate-400 mt-1">Try clearing or changing your search keywords.</p>
                     </div>
                   )}
+
+                  {/* Shortcut to Register Walk-in Patient */}
+                  <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+                    <p className="text-xs text-slate-500">Can&apos;t find the patient in the directory?</p>
+                    <button
+                      type="button"
+                      onClick={() => navigate('/receptionist/patients')}
+                      className="inline-flex items-center gap-1.5 rounded-lg bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-600 hover:bg-blue-100 transition-colors"
+                    >
+                      <User className="h-3.5 w-3.5" />
+                      Register New Walk-in Patient
+                    </button>
+                  </div>
                 </div>
               </div>
             )}
@@ -786,36 +825,24 @@ export default function BookAppointment() {
                     </div>
                   </div>
 
-                  {/* Date Filter & Available Slots */}
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <div className="space-y-1.5">
-                      <label className="text-sm font-semibold text-slate-700">Select Date *</label>
-                      <input
-                        type="date"
-                        value={selectedDate}
-                        onChange={(e) => setSelectedDate(e.target.value)}
-                        className="w-full rounded-xl border border-slate-200 p-2.5 text-sm outline-none focus:border-blue-500"
-                      />
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <label className="text-sm font-semibold text-slate-700">Appointment Date & Time *</label>
-                      <input
-                        type="datetime-local"
-                        value={appointmentDate}
-                        onChange={(e) => setAppointmentDate(e.target.value)}
-                        required
-                        className="w-full rounded-xl border border-slate-200 p-2.5 text-sm outline-none focus:border-blue-500"
-                      />
-                    </div>
+                  {/* Date & Available Slots */}
+                  <div className="space-y-1.5">
+                    <label className="text-sm font-semibold text-slate-700">Appointment Date & Time *</label>
+                    <input
+                      type="datetime-local"
+                      value={appointmentDate}
+                      onChange={(e) => setAppointmentDate(e.target.value)}
+                      required
+                      className="w-full rounded-xl border border-slate-200 p-2.5 text-sm outline-none focus:border-blue-500"
+                    />
                   </div>
 
                   {/* Real-time Available Slots */}
-                  {selectedDocId && selectedDate && (
+                  {selectedDocId && (appointmentDate || selectedDate) && (
                     <div className="rounded-xl border border-blue-100 bg-blue-50/50 p-4 space-y-2">
                       <p className="text-xs font-bold text-blue-800 flex items-center gap-1.5">
                         <Clock className="h-4 w-4 text-blue-600" />
-                        Available Slots for {selectedDate}:
+                        Available Slots for {appointmentDate ? appointmentDate.split('T')[0] : selectedDate}:
                       </p>
                       {fetchingSlots ? (
                         <p className="text-xs text-slate-500">Checking slot availability...</p>
@@ -930,6 +957,17 @@ export default function BookAppointment() {
       {/* ================= PAGE MODE 2: MANAGE & APPROVE APPOINTMENTS ================= */}
       {activePageMode === 'manage' && (
         <div className="space-y-6">
+          {/* Informational Banner */}
+          <div className="rounded-2xl border border-amber-100 bg-amber-50/60 p-4 text-xs text-amber-900 flex items-start gap-3 shadow-xs">
+            <Info className="h-4 w-4 text-amber-600 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="font-bold text-sm text-amber-900">Online & Hospital Requests Queue</p>
+              <p className="text-slate-600 mt-0.5 leading-relaxed">
+                Review and approve or reject online appointment requests submitted by patients via the portal. You can also record consultation billing for completed appointments.
+              </p>
+            </div>
+          </div>
+
           {/* Controls Bar: Doctor Filter & Search Input */}
           <div className="flex flex-col sm:flex-row gap-4 justify-between items-stretch sm:items-center bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
             <div className="flex flex-col sm:flex-row gap-3 flex-1">

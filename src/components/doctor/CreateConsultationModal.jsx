@@ -1,14 +1,29 @@
 /**
  * Create Consultation Modal
  * Form for doctors to record consultation notes matching OpenAPI CreateConsultationRequest DTO
- * Automatically marks appointment consultation as completed upon submission
+ * Includes optional diagnostic Lab Test order section & automatically updates appointment status
  */
 import { useState, useEffect } from 'react';
-import { Stethoscope, X, Activity, Thermometer, HeartPulse, FileText, CheckSquare, Square } from 'lucide-react';
+import {
+  Stethoscope,
+  X,
+  Activity,
+  Thermometer,
+  HeartPulse,
+  FileText,
+  CheckSquare,
+  Square,
+  FlaskConical,
+  PlusCircle,
+  Clock,
+  Loader2,
+} from 'lucide-react';
 import toast from 'react-hot-toast';
 import consultationApi from '../../api/consultationApi';
 import appointmentApi from '../../api/appointmentApi';
 import symptomsApi from '../../api/symptomsApi';
+import labTestApi from '../../api/labTestApi';
+import labOrderApi from '../../api/labOrderApi';
 
 export default function CreateConsultationModal({ appointmentId, isOpen, onClose, onSuccess }) {
   const [bloodPressure, setBloodPressure] = useState('120/80');
@@ -19,6 +34,15 @@ export default function CreateConsultationModal({ appointmentId, isOpen, onClose
   const [availableSymptoms, setAvailableSymptoms] = useState([]);
   const [selectedSymptomIds, setSelectedSymptomIds] = useState([]);
   const [loadingSymptoms, setLoadingSymptoms] = useState(false);
+
+  // Lab Test ordering state
+  const [orderLabTest, setOrderLabTest] = useState(false);
+  const [availableLabTests, setAvailableLabTests] = useState([]);
+  const [selectedLabTestId, setSelectedLabTestId] = useState('');
+  const [labPriority, setLabPriority] = useState('NORMAL');
+  const [labInstructions, setLabInstructions] = useState('');
+  const [loadingLabTests, setLoadingLabTests] = useState(false);
+
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -30,6 +54,10 @@ export default function CreateConsultationModal({ appointmentId, isOpen, onClose
     setPulseRate('72');
     setDiagnosis('');
     setNotes('');
+    setOrderLabTest(false);
+    setSelectedLabTestId('');
+    setLabPriority('NORMAL');
+    setLabInstructions('');
 
     // Fetch master symptoms list
     const loadSymptoms = async () => {
@@ -39,7 +67,6 @@ export default function CreateConsultationModal({ appointmentId, isOpen, onClose
         const list = res.data || [];
         setAvailableSymptoms(list);
         if (list.length > 0) {
-          // Select first symptom by default so payload is never empty
           setSelectedSymptomIds([list[0].id]);
         }
       } catch (err) {
@@ -48,7 +75,22 @@ export default function CreateConsultationModal({ appointmentId, isOpen, onClose
         setLoadingSymptoms(false);
       }
     };
+
+    // Fetch lab tests catalog
+    const loadLabTests = async () => {
+      setLoadingLabTests(true);
+      try {
+        const res = await labTestApi.getAll();
+        setAvailableLabTests(res.data || []);
+      } catch (err) {
+        console.error('Failed to load lab test catalog:', err);
+      } finally {
+        setLoadingLabTests(false);
+      }
+    };
+
     loadSymptoms();
+    loadLabTests();
   }, [isOpen]);
 
   if (!isOpen) return null;
@@ -91,6 +133,11 @@ export default function CreateConsultationModal({ appointmentId, isOpen, onClose
       return;
     }
 
+    if (orderLabTest && !selectedLabTestId) {
+      toast.error('Please select a diagnostic lab test or uncheck the Lab Order box');
+      return;
+    }
+
     setSubmitting(true);
     try {
       const payload = {
@@ -106,14 +153,31 @@ export default function CreateConsultationModal({ appointmentId, isOpen, onClose
       // Step 1: Create consultation record
       await consultationApi.create(payload);
 
-      // Step 2: Automatically advance appointment status to CONSULTATION_COMPLETED
+      // Step 2: Create Lab Order if requested
+      if (orderLabTest && selectedLabTestId) {
+        try {
+          await labOrderApi.create({
+            appointmentId: Number(appointmentId),
+            labTestId: Number(selectedLabTestId),
+            clinicalNotes: diagnosis.trim(),
+            priority: labPriority,
+            instructions: labInstructions.trim() || 'Fasting required prior to sample collection',
+          });
+          toast.success('Diagnostic Lab Test ordered successfully!');
+        } catch (labErr) {
+          console.error('Failed to create lab order:', labErr);
+          toast.error('Consultation saved, but lab order failed to create.');
+        }
+      }
+
+      // Step 3: Advance appointment status to CONSULTATION_COMPLETED
       try {
         await appointmentApi.consultationCompleted(appointmentId);
       } catch (statusErr) {
         console.warn('Consultation created, but failed to update appointment status:', statusErr);
       }
 
-      toast.success('Consultation recorded & status updated to Consultation Completed!');
+      toast.success('Consultation record saved successfully!');
       onSuccess?.();
       onClose();
     } catch (err) {
@@ -265,9 +329,87 @@ export default function CreateConsultationModal({ appointmentId, isOpen, onClose
               placeholder="Enter observations, medical history, recommendations..."
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              rows={3}
+              rows={2}
               className={inputClass}
             />
+          </div>
+
+          {/* 🔬 Integrated Diagnostic Lab Test Order Section */}
+          <div className="rounded-2xl border border-indigo-100 bg-indigo-50/40 p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={orderLabTest}
+                  onChange={(e) => setOrderLabTest(e.target.checked)}
+                  className="h-4 w-4 rounded border-indigo-300 text-indigo-600 focus:ring-indigo-500"
+                />
+                <span className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-indigo-900">
+                  <FlaskConical className="h-4 w-4 text-indigo-600" />
+                  Order Diagnostic Lab Test for Patient
+                </span>
+              </label>
+              {orderLabTest && (
+                <span className="text-[10px] font-semibold bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full">
+                  Lab Order Active
+                </span>
+              )}
+            </div>
+
+            {orderLabTest && (
+              <div className="space-y-3 pt-2 border-t border-indigo-100/80 animate-fade-in">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Select Diagnostic Test <span className="text-rose-500">*</span>
+                  </label>
+                  {loadingLabTests ? (
+                    <p className="text-xs text-slate-400 py-1">Loading lab catalog...</p>
+                  ) : availableLabTests.length === 0 ? (
+                    <p className="text-xs text-amber-700 font-medium">
+                      No lab tests found in catalog. (Admin can create lab tests under Manage Lab Tests).
+                    </p>
+                  ) : (
+                    <select
+                      value={selectedLabTestId}
+                      onChange={(e) => setSelectedLabTestId(e.target.value)}
+                      required={orderLabTest}
+                      className={inputClass}
+                    >
+                      <option value="">-- Choose Diagnostic Test --</option>
+                      {availableLabTests.map((t) => (
+                        <option key={t.id} value={t.id}>
+                          {t.testName} {t.category ? `(${t.category})` : ''} — ₹{t.price}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">Priority</label>
+                    <select
+                      value={labPriority}
+                      onChange={(e) => setLabPriority(e.target.value)}
+                      className={inputClass}
+                    >
+                      <option value="NORMAL">NORMAL</option>
+                      <option value="URGENT">URGENT</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">Instructions</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. 12-hr fasting"
+                      value={labInstructions}
+                      onChange={(e) => setLabInstructions(e.target.value)}
+                      className={inputClass}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Modal Footer */}
@@ -282,9 +424,10 @@ export default function CreateConsultationModal({ appointmentId, isOpen, onClose
             <button
               type="submit"
               disabled={submitting}
-              className="rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold px-6 py-2.5 text-sm shadow-md shadow-blue-500/20 transition-all disabled:opacity-50"
+              className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold px-6 py-2.5 text-sm shadow-md shadow-blue-500/20 transition-all disabled:opacity-50"
             >
-              {submitting ? 'Recording...' : 'Save & Mark Consultation Complete'}
+              {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+              {submitting ? 'Recording Record...' : 'Save Record & Complete Consult'}
             </button>
           </div>
         </form>
@@ -292,3 +435,4 @@ export default function CreateConsultationModal({ appointmentId, isOpen, onClose
     </div>
   );
 }
+

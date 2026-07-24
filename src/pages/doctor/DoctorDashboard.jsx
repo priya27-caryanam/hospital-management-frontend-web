@@ -13,6 +13,7 @@ import {
   FileText,
   User,
   Activity,
+  FlaskConical,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../context/AuthContext';
@@ -55,16 +56,23 @@ export default function DoctorDashboard() {
   const quickActions = [
     {
       icon: CalendarCheck,
-      label: 'My Appointments',
-      description: 'View & manage your upcoming appointments',
+      label: 'My Appointments & Consults',
+      description: 'View schedule, record consultations & order lab tests',
       path: '/doctor/appointments',
       color: 'blue',
+    },
+    {
+      icon: FlaskConical,
+      label: 'Order Diagnostic Lab',
+      description: 'Request blood tests, X-rays & diagnostic orders',
+      path: '/doctor/appointments',
+      color: 'purple',
     },
     {
       icon: FileText,
       label: 'Add Prescription',
       description: 'Write a new prescription for a patient',
-      path: '/doctor/prescriptions/add',
+      path: '/doctor/prescriptions',
       color: 'green',
     },
     {
@@ -72,7 +80,7 @@ export default function DoctorDashboard() {
       label: 'My Profile',
       description: 'View your professional profile details',
       path: '/doctor/profile',
-      color: 'purple',
+      color: 'blue',
     },
   ];
 

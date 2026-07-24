@@ -1,14 +1,16 @@
 /**
  * Add Prescription Modal
  * Allows doctors to create a prescription for an appointment in CONSULTATION_COMPLETED status
- * Automatically calls PUT /api/appointments/{id}/complete after successful creation
+ * Includes optional diagnostic Lab Test section & advances appointment status
  */
 import { useState, useEffect } from 'react';
-import { Pill, X, Plus, Trash2, FileText, Send, Loader2 } from 'lucide-react';
+import { Pill, X, Plus, Trash2, FileText, Send, Loader2, FlaskConical } from 'lucide-react';
 import toast from 'react-hot-toast';
 import prescriptionApi from '../../api/prescriptionApi';
 import appointmentApi from '../../api/appointmentApi';
 import medicineApi from '../../api/medicineApi';
+import labTestApi from '../../api/labTestApi';
+import labOrderApi from '../../api/labOrderApi';
 
 const EMPTY_MEDICINE = {
   medicineId: '',
@@ -24,22 +26,39 @@ export default function AddPrescriptionModal({ appointmentId, isOpen, onClose, o
   const [medicines, setMedicines] = useState([{ ...EMPTY_MEDICINE }]);
   const [availableMedicines, setAvailableMedicines] = useState([]);
   const [loadingMeds, setLoadingMeds] = useState(true);
+
+  // Lab test order states
+  const [orderLabTest, setOrderLabTest] = useState(false);
+  const [availableLabTests, setAvailableLabTests] = useState([]);
+  const [selectedLabTestId, setSelectedLabTestId] = useState('');
+  const [labPriority, setLabPriority] = useState('NORMAL');
+  const [labInstructions, setLabInstructions] = useState('');
+
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     if (!isOpen) return;
-    const fetchMeds = async () => {
+    setOrderLabTest(false);
+    setSelectedLabTestId('');
+    setLabPriority('NORMAL');
+    setLabInstructions('');
+
+    const fetchData = async () => {
       setLoadingMeds(true);
       try {
-        const res = await medicineApi.getAll();
-        setAvailableMedicines(res.data || []);
+        const [medRes, labRes] = await Promise.all([
+          medicineApi.getAll().catch(() => ({ data: [] })),
+          labTestApi.getAll().catch(() => ({ data: [] })),
+        ]);
+        setAvailableMedicines(medRes.data || []);
+        setAvailableLabTests(labRes.data || []);
       } catch (err) {
-        console.error('Failed to load medicines:', err);
+        console.error('Failed to load prescription metadata:', err);
       } finally {
         setLoadingMeds(false);
       }
     };
-    fetchMeds();
+    fetchData();
   }, [isOpen]);
 
   if (!isOpen) return null;
@@ -71,6 +90,10 @@ export default function AddPrescriptionModal({ appointmentId, isOpen, onClose, o
       toast.error('Please select medicine and specify dosage for all rows');
       return;
     }
+    if (orderLabTest && !selectedLabTestId) {
+      toast.error('Please select a diagnostic lab test or uncheck the Lab Order box');
+      return;
+    }
 
     setSubmitting(true);
     try {
@@ -89,6 +112,22 @@ export default function AddPrescriptionModal({ appointmentId, isOpen, onClose, o
 
       // Step 1: Create prescription
       await prescriptionApi.create(payload);
+
+      // Step 2: Create Lab Order if selected
+      if (orderLabTest && selectedLabTestId) {
+        try {
+          await labOrderApi.create({
+            appointmentId: Number(appointmentId),
+            labTestId: Number(selectedLabTestId),
+            clinicalNotes: diagnosis.trim(),
+            priority: labPriority,
+            instructions: labInstructions.trim() || 'Fasting required prior to sample collection',
+          });
+          toast.success('Diagnostic Lab Test ordered successfully!');
+        } catch (labErr) {
+          console.error('Failed to create lab order:', labErr);
+        }
+      }
 
       toast.success('Prescription created successfully!');
       onSuccess?.();
@@ -242,6 +281,80 @@ export default function AddPrescriptionModal({ appointmentId, isOpen, onClose, o
             />
           </div>
 
+          {/* 🔬 Optional Diagnostic Lab Test Section */}
+          <div className="rounded-2xl border border-indigo-100 bg-indigo-50/40 p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={orderLabTest}
+                  onChange={(e) => setOrderLabTest(e.target.checked)}
+                  className="h-4 w-4 rounded border-indigo-300 text-indigo-600 focus:ring-indigo-500"
+                />
+                <span className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-indigo-900">
+                  <FlaskConical className="h-4 w-4 text-indigo-600" />
+                  Order Diagnostic Lab Test with Prescription
+                </span>
+              </label>
+              {orderLabTest && (
+                <span className="text-[10px] font-semibold bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full">
+                  Lab Test Included
+                </span>
+              )}
+            </div>
+
+            {orderLabTest && (
+              <div className="space-y-3 pt-2 border-t border-indigo-100/80 animate-fade-in">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Select Diagnostic Test <span className="text-rose-500">*</span>
+                  </label>
+                  {availableLabTests.length === 0 ? (
+                    <p className="text-xs text-amber-700 font-medium">No lab tests found in catalog.</p>
+                  ) : (
+                    <select
+                      value={selectedLabTestId}
+                      onChange={(e) => setSelectedLabTestId(e.target.value)}
+                      required={orderLabTest}
+                      className={inputClass}
+                    >
+                      <option value="">-- Choose Diagnostic Test --</option>
+                      {availableLabTests.map((t) => (
+                        <option key={t.id} value={t.id}>
+                          {t.testName} {t.category ? `(${t.category})` : ''} — ₹{t.price}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">Priority</label>
+                    <select
+                      value={labPriority}
+                      onChange={(e) => setLabPriority(e.target.value)}
+                      className={inputClass}
+                    >
+                      <option value="NORMAL">NORMAL</option>
+                      <option value="URGENT">URGENT</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">Lab Instructions</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Fasting required"
+                      value={labInstructions}
+                      onChange={(e) => setLabInstructions(e.target.value)}
+                      className={inputClass}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
           <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">
             <button
               type="button"
@@ -264,3 +377,4 @@ export default function AddPrescriptionModal({ appointmentId, isOpen, onClose, o
     </div>
   );
 }
+

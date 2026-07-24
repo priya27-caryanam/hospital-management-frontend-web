@@ -120,7 +120,7 @@ export default function PendingPrescriptions() {
     {
       header: 'Diagnosis',
       render: (row) => (
-        <span className="font-semibold text-blue-600 text-xs truncate max-w-[150px] block" title={row.diagnosis}>
+        <span className="font-semibold text-blue-600 text-xs truncate max-w-[140px] block" title={row.diagnosis}>
           {row.diagnosis || '—'}
         </span>
       ),
@@ -131,10 +131,18 @@ export default function PendingPrescriptions() {
         <div className="text-xs space-y-1">
           {(row.medicines || []).map((m, idx) => (
             <div key={idx} className="font-medium text-slate-700 text-[11px]">
-              • <span className="font-bold">{m.medicineName}</span> (Qty: {m.quantity}, {m.dosage})
+              • <span className="font-bold">{m.medicineName}</span> (Qty: {m.quantity}, {m.dosage}{m.frequency ? `, ${m.frequency}` : ''}{m.duration ? `, ${m.duration}` : ''})
             </div>
           ))}
         </div>
+      ),
+    },
+    {
+      header: 'Prescribed Date',
+      render: (row) => (
+        <span className="text-xs text-slate-600 font-medium">
+          {formatDate(row.createdAt)}
+        </span>
       ),
     },
     {

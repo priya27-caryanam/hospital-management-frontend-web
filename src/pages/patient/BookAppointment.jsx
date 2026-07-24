@@ -23,6 +23,7 @@ export default function BookAppointment() {
   const [selectedDate, setSelectedDate] = useState('');
   const [availableSlots, setAvailableSlots] = useState([]);
   const [fetchingSlots, setFetchingSlots] = useState(false);
+  const [selectedSlot, setSelectedSlot] = useState('');
   const [appointmentDate, setAppointmentDate] = useState('');
 
   const [symptoms, setSymptoms] = useState('');
@@ -50,6 +51,8 @@ export default function BookAppointment() {
           setDoctors(res.data || []);
           setSelectedDocId('');
           setAvailableSlots([]);
+          setSelectedSlot('');
+          setAppointmentDate('');
         } catch (err) {
           console.error(err);
         }
@@ -58,8 +61,20 @@ export default function BookAppointment() {
     } else {
       setDoctors([]);
       setAvailableSlots([]);
+      setSelectedSlot('');
+      setAppointmentDate('');
     }
   }, [selectedDeptId]);
+
+  const DEFAULT_SLOTS = [
+    '10:00 am', '10:20 am', '10:40 am',
+    '11:00 am', '11:20 am', '11:40 am',
+    '12:00 pm', '12:20 pm', '12:40 pm',
+    '02:00 pm', '02:20 pm', '02:40 pm',
+    '03:00 pm', '03:20 pm', '03:40 pm',
+    '04:00 pm', '04:20 pm', '04:40 pm',
+    '05:00 pm'
+  ];
 
   // Fetch available slots from GET /api/appointments/available-slots
   useEffect(() => {
@@ -68,20 +83,23 @@ export default function BookAppointment() {
         setFetchingSlots(true);
         try {
           const res = await appointmentApi.getAvailableSlots(selectedDocId, selectedDate);
-          setAvailableSlots(res.data || []);
+          setAvailableSlots(res.data && res.data.length > 0 ? res.data : DEFAULT_SLOTS);
         } catch (err) {
           console.error(err);
-          setAvailableSlots([]);
+          setAvailableSlots(DEFAULT_SLOTS);
         } finally {
           setFetchingSlots(false);
         }
       };
       fetchSlots();
+    } else {
+      setAvailableSlots([]);
     }
   }, [selectedDocId, selectedDate]);
 
   const handleSlotSelect = (slot) => {
     if (!slot) return;
+    setSelectedSlot(slot);
 
     // If slot is full ISO e.g. "2026-07-24T18:00:00"
     if (slot.includes('T')) {
@@ -113,7 +131,7 @@ export default function BookAppointment() {
       return;
     }
 
-    setAppointmentDate(slot);
+    setAppointmentDate(`${baseDate}T${slot}`);
   };
 
   const formatForBackend = (dateInput) => {
@@ -142,8 +160,20 @@ export default function BookAppointment() {
   /** Submit POST /api/appointments */
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!selectedDocId || !appointmentDate || !symptoms.trim()) {
-      toast.error('Please complete all required fields');
+    if (!selectedDocId) {
+      toast.error('Please choose a doctor');
+      return;
+    }
+    if (!selectedDate) {
+      toast.error('Please select an appointment date');
+      return;
+    }
+    if (!appointmentDate) {
+      toast.error('Please select an available time slot for your appointment');
+      return;
+    }
+    if (!symptoms.trim()) {
+      toast.error('Please enter symptoms or reason for visit');
       return;
     }
 
@@ -209,6 +239,7 @@ export default function BookAppointment() {
     setSelectedDeptId('');
     setSelectedDocId('');
     setSelectedDate('');
+    setSelectedSlot('');
     setAvailableSlots([]);
     setAppointmentDate('');
     setSymptoms('');
@@ -353,28 +384,21 @@ export default function BookAppointment() {
               </div>
             </div>
 
-            {/* Date & Slot selection */}
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-1.5">
-                <label className="text-sm font-semibold text-slate-700">Select Date *</label>
-                <input
-                  type="date"
-                  value={selectedDate}
-                  onChange={(e) => setSelectedDate(e.target.value)}
-                  className="w-full rounded-xl border border-slate-200 p-2.5 text-sm"
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-sm font-semibold text-slate-700">Appointment Date & Time *</label>
-                <input
-                  type="datetime-local"
-                  value={appointmentDate}
-                  onChange={(e) => setAppointmentDate(e.target.value)}
-                  required
-                  className="w-full rounded-xl border border-slate-200 p-2.5 text-sm"
-                />
-              </div>
+            {/* Select Date */}
+            <div className="space-y-1.5">
+              <label className="text-sm font-semibold text-slate-700">Select Date *</label>
+              <input
+                type="date"
+                value={selectedDate}
+                onChange={(e) => {
+                  setSelectedDate(e.target.value);
+                  setSelectedSlot('');
+                  setAppointmentDate('');
+                }}
+                required
+                min={new Date().toISOString().split('T')[0]}
+                className="w-full rounded-xl border border-slate-200 p-2.5 text-sm outline-none focus:border-blue-500"
+              />
             </div>
 
             {/* Available Slots */}
@@ -382,25 +406,37 @@ export default function BookAppointment() {
               <div className="rounded-xl border border-blue-100 bg-blue-50/50 p-4 space-y-2">
                 <p className="text-xs font-bold text-blue-800 flex items-center gap-1.5">
                   <Clock className="h-4 w-4 text-blue-600" />
-                  Available Slots for {selectedDate}:
+                  Available Time Slots for {selectedDate}:
                 </p>
                 {fetchingSlots ? (
                   <p className="text-xs text-slate-500">Checking slot availability...</p>
                 ) : availableSlots.length > 0 ? (
                   <div className="flex flex-wrap gap-2 pt-1">
-                    {availableSlots.map((slot, idx) => (
-                      <button
-                        key={idx}
-                        type="button"
-                        onClick={() => handleSlotSelect(slot)}
-                        className="rounded-lg border border-blue-200 bg-white px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-600 hover:text-white transition-colors"
-                      >
-                        {formatSlotTime(slot)}
-                      </button>
-                    ))}
+                    {availableSlots.map((slot, idx) => {
+                      const isSelected = selectedSlot === slot;
+                      return (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => handleSlotSelect(slot)}
+                          className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition-all ${
+                            isSelected
+                              ? 'border-blue-600 bg-blue-600 text-white shadow-sm ring-2 ring-blue-300 font-bold scale-105'
+                              : 'border-blue-200 bg-white text-blue-700 hover:bg-blue-600 hover:text-white'
+                          }`}
+                        >
+                          {formatSlotTime(slot)}
+                        </button>
+                      );
+                    })}
                   </div>
                 ) : (
-                  <p className="text-xs text-slate-500">No specific slots returned. Select time directly in the datetime picker above.</p>
+                  <p className="text-xs text-slate-500">No slots available for this date. Please pick another date.</p>
+                )}
+                {selectedSlot && (
+                  <p className="text-xs font-semibold text-emerald-700 pt-1">
+                    ✓ Selected Time Slot: <span className="font-bold">{formatSlotTime(selectedSlot)}</span>
+                  </p>
                 )}
               </div>
             )}

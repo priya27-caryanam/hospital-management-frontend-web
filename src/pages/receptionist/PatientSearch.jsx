@@ -39,6 +39,7 @@ import appointmentApi from '../../api/appointmentApi';
 import SearchBar from '../../components/common/SearchBar';
 import DataTable from '../../components/common/DataTable';
 import EmptyState from '../../components/common/EmptyState';
+import LoadingSpinner from '../../components/common/LoadingSpinner';
 
 const GENDERS = ['MALE', 'FEMALE', 'OTHER'];
 const BLOOD_GROUPS = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
@@ -71,6 +72,8 @@ export default function PatientSearch() {
   const [searchQuery, setSearchQuery] = useState('');
   const [hasSearched, setHasSearched] = useState(false);
   const [expandedId, setExpandedId] = useState(null);
+  const [expandedPatientDetails, setExpandedPatientDetails] = useState(null);
+  const [loadingPatientDetails, setLoadingPatientDetails] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
 
   // Patient Appointments state for expanded card
@@ -144,15 +147,46 @@ export default function PatientSearch() {
     }
   };
 
-  const toggleExpand = (id) => {
-    if (expandedId === id) {
+  /** Toggle Expand & Fetch Patient Details via GET /api/patients/{id} */
+  const toggleExpand = async (id) => {
+    if (expandedId !== null && String(expandedId) === String(id)) {
       setExpandedId(null);
+      setExpandedPatientDetails(null);
       setPatientAppointments([]);
     } else {
       setExpandedId(id);
+      setExpandedPatientDetails(null);
+      setLoadingPatientDetails(true);
+
+      // 1. Fetch full patient profile via GET /api/patients/{id}
+      try {
+        const res = await patientApi.getById(id);
+        setExpandedPatientDetails(res.data);
+      } catch (err) {
+        console.error('Failed to fetch patient profile:', err);
+        // Fallback to locally loaded row object if getById endpoint errors out
+        const fallback = patients.find((p) => String(p.id) === String(id));
+        setExpandedPatientDetails(fallback || null);
+      } finally {
+        setLoadingPatientDetails(false);
+      }
+
+      // 2. Fetch patient appointments via GET /api/appointments/patient/{id}
       fetchPatientAppointments(id);
     }
   };
+
+  // Auto-scroll to expanded details panel when opened
+  useEffect(() => {
+    if (expandedId !== null) {
+      setTimeout(() => {
+        const el = document.getElementById('expanded-patient-panel');
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+      }, 100);
+    }
+  }, [expandedId, expandedPatientDetails]);
 
   const handleApprovePatientAppt = async (apptId) => {
     setActionLoadingApptId(apptId);
@@ -278,15 +312,22 @@ export default function PatientSearch() {
     },
     {
       header: 'Actions',
-      render: (row) => (
-        <button
-          onClick={() => toggleExpand(row.id)}
-          className="inline-flex items-center gap-1.5 rounded-lg bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-600 hover:bg-blue-100 transition-colors"
-        >
-          <User className="h-3.5 w-3.5" />
-          {expandedId === row.id ? 'Hide' : 'View Details'}
-        </button>
-      ),
+      render: (row) => {
+        const isExpanded = expandedId !== null && String(expandedId) === String(row.id);
+        return (
+          <button
+            onClick={() => toggleExpand(row.id)}
+            className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
+              isExpanded
+                ? 'bg-rose-50 text-rose-600 hover:bg-rose-100'
+                : 'bg-blue-50 text-blue-600 hover:bg-blue-100'
+            }`}
+          >
+            <User className="h-3.5 w-3.5" />
+            {isExpanded ? 'Hide' : 'View Details'}
+          </button>
+        );
+      },
     },
   ];
 
@@ -363,53 +404,80 @@ export default function PatientSearch() {
                 onPageChange={setCurrentPage}
               />
 
-              {expandedId && patients.find((p) => p.id === expandedId) && (() => {
-                const patient = patients.find((p) => p.id === expandedId);
-                return (
-                  <div className="rounded-2xl border border-blue-200 bg-blue-50/40 p-6 shadow-sm space-y-6 animate-fade-in">
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-blue-100 pb-4">
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-100 text-blue-600 font-bold text-lg">
-                          {patient.firstName?.charAt(0) || 'P'}
-                        </div>
-                        <div>
-                          <h3 className="text-lg font-bold text-slate-800">
-                            {patient.firstName} {patient.lastName}
-                          </h3>
-                          <p className="text-xs font-semibold text-blue-600">Patient ID: #{patient.id}</p>
-                        </div>
-                      </div>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <button
-                          onClick={() => navigate('/receptionist/appointments')}
-                          className="flex items-center gap-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 text-xs font-semibold transition-colors shadow-sm"
-                        >
-                          <Calendar className="h-3.5 w-3.5" />
-                          Book Appointment
-                        </button>
-                        <span
-                          className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-bold ${
-                            patient.status === 'ACTIVE'
-                              ? 'bg-emerald-100 text-emerald-700'
-                              : 'bg-slate-100 text-slate-600'
-                          }`}
-                        >
-                          <BadgeCheck className="h-3.5 w-3.5" />
-                          {patient.status || 'ACTIVE'}
-                        </span>
-                      </div>
+              {expandedId !== null && (
+                <div id="expanded-patient-panel" className="rounded-2xl border border-blue-200 bg-blue-50/40 p-6 shadow-sm space-y-6 animate-fade-in mt-6">
+                  {loadingPatientDetails ? (
+                    <div className="py-10 text-center text-slate-500 space-y-2">
+                      <LoadingSpinner />
+                      <p className="text-xs font-medium text-slate-500">Fetching patient profile via GET /api/patients/{expandedId}...</p>
                     </div>
+                  ) : (() => {
+                    const patient = expandedPatientDetails || patients.find((p) => String(p.id) === String(expandedId));
+                    if (!patient) return <p className="text-xs text-slate-400">Patient details unavailable.</p>;
 
-                    {/* Patient info details */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 text-sm bg-white p-4 rounded-xl border border-blue-100">
-                      <DetailItem icon={Mail} label="Email" value={patient.email} />
-                      <DetailItem icon={Phone} label="Mobile" value={patient.mobile} />
-                      <DetailItem icon={User} label="Full Name" value={`${patient.firstName} ${patient.lastName}`} />
-                      {patient.role && <DetailItem label="Role" value={patient.role} />}
-                      {patient.additionalDetails && (
-                        <DetailItem label="Additional Details" value={patient.additionalDetails} />
-                      )}
-                    </div>
+                    return (
+                      <>
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-blue-100 pb-4">
+                          <div className="flex items-center gap-3">
+                            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-600 text-white font-bold text-lg shadow-md">
+                              {patient.firstName?.charAt(0) || 'P'}
+                            </div>
+                            <div>
+                              <h3 className="text-lg font-bold text-slate-800">
+                                {patient.firstName} {patient.lastName}
+                              </h3>
+                              <p className="text-xs font-semibold text-blue-600">Patient ID: #{patient.id}</p>
+                            </div>
+                          </div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <button
+                              onClick={() => navigate('/receptionist/appointments')}
+                              className="flex items-center gap-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 text-xs font-semibold transition-colors shadow-sm"
+                            >
+                              <Calendar className="h-3.5 w-3.5" />
+                              Book Appointment
+                            </button>
+                            <span
+                              className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-bold ${
+                                patient.status === 'ACTIVE'
+                                  ? 'bg-emerald-100 text-emerald-700'
+                                  : 'bg-slate-100 text-slate-600'
+                              }`}
+                            >
+                              <BadgeCheck className="h-3.5 w-3.5" />
+                              {patient.status || 'ACTIVE'}
+                            </span>
+                            <button
+                              onClick={() => toggleExpand(patient.id)}
+                              className="rounded-xl border border-slate-200 bg-white hover:bg-slate-100 text-slate-600 px-3 py-1.5 text-xs font-semibold transition-colors"
+                            >
+                              Hide
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Patient info details - 100% Backend Field Mapping */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 text-sm bg-white p-4 rounded-xl border border-blue-100 shadow-xs">
+                          <DetailItem icon={User} label="Full Name" value={`${patient.firstName || ''} ${patient.lastName || ''}`} />
+                          <DetailItem icon={Mail} label="Email" value={patient.email} />
+                          <DetailItem icon={Phone} label="Mobile" value={patient.mobile} />
+                          <DetailItem label="Role" value={patient.role} />
+                          <DetailItem label="Status" value={patient.status} />
+                          {patient.gender && <DetailItem label="Gender" value={patient.gender} />}
+                          {patient.dateOfBirth && <DetailItem icon={Calendar} label="Date of Birth" value={patient.dateOfBirth} />}
+                          {patient.bloodGroup && <DetailItem icon={Heart} label="Blood Group" value={patient.bloodGroup} />}
+                          {patient.height && <DetailItem icon={Ruler} label="Height" value={`${patient.height} cm`} />}
+                          {patient.weight && <DetailItem icon={Weight} label="Weight" value={`${patient.weight} kg`} />}
+                          {patient.address && (
+                            <DetailItem
+                              icon={MapPin}
+                              label="Address"
+                              value={`${patient.address}${patient.city ? `, ${patient.city}` : ''}${patient.state ? `, ${patient.state}` : ''}${patient.pincode ? ` - ${patient.pincode}` : ''}`}
+                            />
+                          )}
+                          {patient.emergencyContact && <DetailItem icon={Phone} label="Emergency Contact" value={patient.emergencyContact} />}
+                          {patient.additionalDetails && <DetailItem label="Additional Details" value={patient.additionalDetails} />}
+                        </div>
 
                     {/* Patient Appointments list with direct Approve / Reject buttons */}
                     <div className="space-y-3 pt-2">
@@ -491,11 +559,13 @@ export default function PatientSearch() {
                         </p>
                       )}
                     </div>
-                  </div>
+                  </>
                 );
               })()}
-            </>
+            </div>
           )}
+        </>
+      )}
         </div>
       )}
 

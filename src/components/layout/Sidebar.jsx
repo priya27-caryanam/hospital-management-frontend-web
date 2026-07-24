@@ -30,7 +30,7 @@ const roleNavItems = {
   DOCTOR: [
     { path: '/doctor/dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { path: '/doctor/profile', label: 'My Profile', icon: UserCircle },
-    { path: '/doctor/appointments', label: 'My Appointments', icon: CalendarDays },
+    { path: '/doctor/appointments', label: 'My Appointments & Lab Orders', icon: CalendarDays },
     { path: '/doctor/prescriptions', label: 'Add Prescription', icon: ClipboardList },
   ],
   NURSE: [
