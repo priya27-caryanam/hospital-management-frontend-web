@@ -13,6 +13,7 @@ import patientApi from '../../api/patientApi';
 import departmentApi from '../../api/departmentApi';
 import doctorApi from '../../api/doctorApi';
 import appointmentApi from '../../api/appointmentApi';
+import doctorAvailabilityApi from '../../api/doctorAvailabilityApi';
 
 export default function BookWalkInAppointment() {
   const navigate = useNavigate();
@@ -118,6 +119,36 @@ export default function BookWalkInAppointment() {
       setAvailableSlots([]);
     }
   }, [selectedDocId, selectedDate]);
+  const [dateAvailabilities, setDateAvailabilities] = useState([]);
+
+  // Fetch date-wise doctor availability
+  useEffect(() => {
+    if (selectedDate) {
+      const fetchDateAvail = async () => {
+        try {
+          const res = await doctorAvailabilityApi.getByDate(selectedDate);
+          setDateAvailabilities(res.data || []);
+        } catch (err) {
+          console.error('Failed to load date availability:', err);
+          setDateAvailabilities([]);
+        }
+      };
+      fetchDateAvail();
+    } else {
+      setDateAvailabilities([]);
+    }
+  }, [selectedDate]);
+
+  /** Helper to determine exact date-wise status for a doctor */
+  const getDoctorDateStatus = (doc) => {
+    if (selectedDate && dateAvailabilities.length > 0) {
+      const record = dateAvailabilities.find((a) => Number(a.doctorId) === Number(doc.id));
+      if (record && record.status) {
+        return record.status;
+      }
+    }
+    return doc.available !== false ? 'AVAILABLE' : 'UNAVAILABLE';
+  };
 
   const filteredPatients = patients.filter((p) => {
     // Check if patient ID is recorded in offline registration list or marked as offline
@@ -438,12 +469,47 @@ export default function BookWalkInAppointment() {
                     className="w-full rounded-xl border border-slate-200 p-2.5 text-sm outline-none focus:border-blue-500 bg-white"
                   >
                     <option value="">-- Select Doctor --</option>
-                    {doctors.map((doc) => (
-                      <option key={doc.id} value={doc.id}>
-                        Dr. {doc.firstName} {doc.lastName} ({doc.specialization})
-                      </option>
-                    ))}
+                    {doctors.map((doc) => {
+                      const status = getDoctorDateStatus(doc);
+                      const isAvail = status === 'AVAILABLE';
+                      const spec = doc.specializationName || doc.specialization || '';
+                      const specText = spec ? ` - ${spec}` : '';
+                      
+                      let availBadge = '🟢 Available';
+                      if (status === 'UNAVAILABLE') availBadge = '🔴 Not Available';
+                      else if (status === 'LEAVE') availBadge = '🟡 On Leave';
+                      else if (status === 'EMERGENCY') availBadge = '🔴 Emergency';
+
+                      return (
+                        <option key={doc.id} value={doc.id}>
+                          Dr. {doc.firstName} {doc.lastName}{specText} ({availBadge})
+                        </option>
+                      );
+                    })}
                   </select>
+
+                  {selectedDocId && (() => {
+                    const selDoc = doctors.find((d) => String(d.id) === String(selectedDocId));
+                    if (!selDoc) return null;
+                    const status = getDoctorDateStatus(selDoc);
+                    const isAvail = status === 'AVAILABLE';
+                    
+                    return (
+                      <div className="pt-1">
+                        {isAvail ? (
+                          <span className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-lg">
+                            <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                            🟢 (Available) Doctor is Available for Consultation {selectedDate ? `on ${selectedDate}` : ''}
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1.5 text-xs font-bold text-rose-700 bg-rose-50 border border-rose-200 px-3 py-1 rounded-lg">
+                            <span className="h-2 w-2 rounded-full bg-rose-500" />
+                            🔴 ({status.replace('_', ' ')}) Doctor is Currently Unavailable / On Leave {selectedDate ? `on ${selectedDate}` : ''}
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
 

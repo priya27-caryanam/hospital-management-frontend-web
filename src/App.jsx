@@ -66,6 +66,8 @@ import SearchDoctor from './pages/patient/SearchDoctor';
 import PatientBookAppointment from './pages/patient/BookAppointment';
 import PatientAppointments from './pages/patient/MyAppointments';
 import Prescriptions from './pages/patient/Prescriptions';
+import MyLabTests from './pages/patient/MyLabTests';
+import MyLabReports from './pages/patient/MyLabReports';
 import MyBills from './pages/patient/MyBills';
 import PatientSymptomChecker from './pages/patient/PatientSymptomChecker';
 
@@ -201,6 +203,8 @@ export default function App() {
         <Route path="book-appointment" element={<PatientBookAppointment />} />
         <Route path="appointments" element={<PatientAppointments />} />
         <Route path="prescriptions" element={<Prescriptions />} />
+        <Route path="lab-tests" element={<MyLabTests />} />
+        <Route path="lab-reports" element={<MyLabReports />} />
         <Route path="bills" element={<MyBills />} />
         <Route path="symptoms" element={<PatientSymptomChecker />} />
       </Route>

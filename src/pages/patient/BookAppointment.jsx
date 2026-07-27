@@ -8,9 +8,11 @@ import { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
 import { Calendar, Clock, HelpCircle, ArrowRight, CheckCircle } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { createContext } from 'react';
 import departmentApi from '../../api/departmentApi';
 import doctorApi from '../../api/doctorApi';
 import appointmentApi from '../../api/appointmentApi';
+import doctorAvailabilityApi from '../../api/doctorAvailabilityApi';
 
 export default function BookAppointment() {
   const { user } = useAuth();
@@ -23,6 +25,7 @@ export default function BookAppointment() {
   const [selectedDate, setSelectedDate] = useState('');
   const [availableSlots, setAvailableSlots] = useState([]);
   const [fetchingSlots, setFetchingSlots] = useState(false);
+  const [dateAvailabilities, setDateAvailabilities] = useState([]);
   const [selectedSlot, setSelectedSlot] = useState('');
   const [appointmentDate, setAppointmentDate] = useState('');
 
@@ -96,6 +99,45 @@ export default function BookAppointment() {
       setAvailableSlots([]);
     }
   }, [selectedDocId, selectedDate]);
+
+  // Fetch date-wise availability from GET /api/doctor-availability/date?date=YYYY-MM-DD
+  useEffect(() => {
+    if (selectedDate) {
+      const fetchDateAvail = async () => {
+        try {
+          const res = await doctorAvailabilityApi.getByDate(selectedDate);
+          setDateAvailabilities(res.data || []);
+        } catch (err) {
+          console.error('Failed to load date availability:', err);
+          setDateAvailabilities([]);
+        }
+      };
+      fetchDateAvail();
+    } else {
+      setDateAvailabilities([]);
+    }
+  }, [selectedDate]);
+
+  /** Helper to determine exact date-wise status for a doctor */
+  const getDoctorDateStatus = (doc) => {
+    if (!doc) return 'UNAVAILABLE';
+    if (selectedDate) {
+      if (Array.isArray(dateAvailabilities)) {
+        const record = dateAvailabilities.find(
+          (a) => Number(a.doctorId) === Number(doc.id) || String(a.doctorId) === String(doc.id)
+        );
+        if (record && record.status) {
+          return record.status; // 'AVAILABLE' | 'UNAVAILABLE' | 'LEAVE' | 'EMERGENCY'
+        }
+        // If date is selected and schedule list loaded but no record exists for this doctor:
+        if (dateAvailabilities.length >= 0) {
+          return 'NOT_SCHEDULED';
+        }
+      }
+      return doc.available === true ? 'AVAILABLE' : 'UNAVAILABLE';
+    }
+    return doc.available !== false ? 'AVAILABLE' : 'UNAVAILABLE';
+  };
 
   const handleSlotSelect = (slot) => {
     if (!slot) return;
@@ -177,6 +219,21 @@ export default function BookAppointment() {
       return;
     }
 
+    // Validate client-side that selected doctor is AVAILABLE on selectedDate
+    const selectedDoctorObj = doctors.find((d) => String(d.id) === String(selectedDocId));
+    const currentDocStatus = getDoctorDateStatus(selectedDoctorObj);
+    if (currentDocStatus !== 'AVAILABLE') {
+      const docName = selectedDoctorObj ? `Dr. ${selectedDoctorObj.firstName} ${selectedDoctorObj.lastName}` : 'Selected Doctor';
+      let reasonText = 'is not available';
+      if (currentDocStatus === 'UNAVAILABLE') reasonText = 'is marked Unavailable';
+      else if (currentDocStatus === 'LEAVE') reasonText = 'is on Leave';
+      else if (currentDocStatus === 'EMERGENCY') reasonText = 'is in Emergency status';
+      else if (currentDocStatus === 'NOT_SCHEDULED') reasonText = 'has no working schedule configured';
+
+      toast.error(`${docName} ${reasonText} on ${selectedDate}. Please select another date or available doctor.`);
+      return;
+    }
+
     setLoading(true);
     setHasError(false);
 
@@ -200,6 +257,10 @@ export default function BookAppointment() {
         res = await appointmentApi.create(payload);
       } catch (firstErr) {
         if (firstErr.response && firstErr.response.status === 500) {
+          const backendMsg = firstErr.response?.data?.message || firstErr.response?.data?.error || '';
+          if (backendMsg && backendMsg.toLowerCase().includes('not available')) {
+            throw firstErr; // Re-throw to present exact backend error message
+          }
           console.warn('500 received with LocalDateTime format, trying ISO string...');
           // Attempt 2: ISO string with timezone "2026-07-24T18:00:00.000Z"
           try {
@@ -224,11 +285,14 @@ export default function BookAppointment() {
       toast.success('Appointment request submitted successfully!');
     } catch (err) {
       console.error('Final appointment booking error:', err);
-      if (err.response && (err.response.status === 403 || err.response.status === 401)) {
+      const serverMsg = err.response?.data?.message || err.response?.data?.error || (typeof err.response?.data === 'string' ? err.response.data : '');
+      if (serverMsg) {
+        toast.error(serverMsg);
+      } else if (err.response && (err.response.status === 403 || err.response.status === 401)) {
         setHasError(true);
         toast.error('Access Denied: Appointment creation is restricted to Front Desk.');
       } else {
-        toast.error(err.response?.data?.message || 'Failed to submit appointment request');
+        toast.error('Failed to submit appointment request');
       }
     } finally {
       setLoading(false);
@@ -375,12 +439,47 @@ export default function BookAppointment() {
                   className="w-full rounded-xl border border-slate-200 p-2.5 text-sm"
                 >
                   <option value="">-- Choose Doctor --</option>
-                  {doctors.map((doc) => (
-                    <option key={doc.id} value={doc.id}>
-                      Dr. {doc.firstName} {doc.lastName} ({doc.specialization})
-                    </option>
-                  ))}
+                  {doctors.map((doc) => {
+                    const status = getDoctorDateStatus(doc);
+                    const isAvail = status === 'AVAILABLE';
+                    const spec = doc.specializationName || doc.specialization || '';
+                    const specText = spec ? ` - ${spec}` : '';
+                    
+                    let availBadge = '🟢 Available';
+                    if (status === 'UNAVAILABLE') availBadge = '🔴 Not Available';
+                    else if (status === 'LEAVE') availBadge = '🟡 On Leave';
+                    else if (status === 'EMERGENCY') availBadge = '🔴 Emergency';
+
+                    return (
+                      <option key={doc.id} value={doc.id}>
+                        Dr. {doc.firstName} {doc.lastName}{specText} ({availBadge})
+                      </option>
+                    );
+                  })}
                 </select>
+
+                {selectedDocId && (() => {
+                  const selDoc = doctors.find((d) => String(d.id) === String(selectedDocId));
+                  if (!selDoc) return null;
+                  const status = getDoctorDateStatus(selDoc);
+                  const isAvail = status === 'AVAILABLE';
+                  
+                  return (
+                    <div className="pt-1">
+                      {isAvail ? (
+                        <span className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-lg">
+                          <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                          🟢 (Available) Doctor is Available for Consultation {selectedDate ? `on ${selectedDate}` : ''}
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5 text-xs font-bold text-rose-700 bg-rose-50 border border-rose-200 px-3 py-1 rounded-lg">
+                          <span className="h-2 w-2 rounded-full bg-rose-500" />
+                          🔴 ({status.replace('_', ' ')}) Doctor is Currently Unavailable / On Leave {selectedDate ? `on ${selectedDate}` : ''}
+                        </span>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
             </div>
 

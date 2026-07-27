@@ -8,7 +8,7 @@ import { useAuth } from '../../context/AuthContext';
 import {
   LayoutDashboard, Building2, UserPlus, Users, CalendarDays,
   Receipt, Stethoscope, FileText, ClipboardList, UserCircle,
-  Search, HeartPulse, LogOut, X, Activity, Pill, TestTube, Package,
+  Search, HeartPulse, LogOut, X, Activity, Pill, TestTube, Package, FlaskConical,
 } from 'lucide-react';
 
 /** Navigation items per role */
@@ -56,6 +56,7 @@ const roleNavItems = {
   ],
   LAB_TECHNICIAN: [
     { path: '/lab/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { path: '/lab/orders', label: 'Lab Orders Queue', icon: FlaskConical },
     { path: '/lab/reports', label: 'Lab Reports', icon: TestTube },
   ],
   PATIENT: [
@@ -65,6 +66,7 @@ const roleNavItems = {
     { path: '/patient/book-appointment', label: 'Book Appointment', icon: CalendarDays },
     { path: '/patient/appointments', label: 'My Appointments', icon: CalendarDays },
     { path: '/patient/prescriptions', label: 'Prescriptions', icon: ClipboardList },
+    { path: '/patient/lab-reports', label: 'Lab Reports', icon: TestTube },
     { path: '/patient/bills', label: 'My Bills', icon: Receipt },
   ],
 };

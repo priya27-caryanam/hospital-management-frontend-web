@@ -27,6 +27,7 @@ import toast from 'react-hot-toast';
 import { useAuth } from '../../context/AuthContext';
 import doctorApi from '../../api/doctorApi';
 import appointmentApi from '../../api/appointmentApi';
+import labOrderApi from '../../api/labOrderApi';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 import DataTable from '../../components/common/DataTable';
 import EmptyState from '../../components/common/EmptyState';
@@ -65,6 +66,8 @@ export default function MyAppointments() {
   const [createLabOrderApptId, setCreateLabOrderApptId] = useState(null);
   const [reviewLabReportOrderId, setReviewLabReportOrderId] = useState(null);
 
+  const [labOrdersMap, setLabOrdersMap] = useState({});
+
   /** Fetch doctor ID and appointments based on active tab */
   const fetchAppointments = useCallback(async () => {
     if (!user?.userId) return;
@@ -88,7 +91,27 @@ export default function MyAppointments() {
         res = await appointmentApi.getByDoctor(docId);
       }
 
-      setAppointments(res.data || []);
+      const list = res.data || [];
+      setAppointments(list);
+
+      // Check existing lab orders per appointment using GET /api/lab-orders/appointment/{appointmentId}
+      const map = {};
+      await Promise.all(
+        list.map(async (a) => {
+          const apptId = a.id || a.appointmentId;
+          if (apptId) {
+            try {
+              const loRes = await labOrderApi.getByAppointment(apptId);
+              if (loRes.data && (Array.isArray(loRes.data) ? loRes.data.length > 0 : !!loRes.data.id)) {
+                map[apptId] = true;
+              }
+            } catch (e) {
+              // No lab order found
+            }
+          }
+        })
+      );
+      setLabOrdersMap(map);
     } catch (err) {
       console.error('Failed to load appointments:', err);
       toast.error('Unable to load appointments.');
@@ -281,35 +304,45 @@ export default function MyAppointments() {
           );
         }
 
-        // CONSULTATION_COMPLETED -> View Consult / Add Prescription / Order Lab Test / Complete
-        if (status === 'CONSULTATION_COMPLETED') {
+        // CONSULTATION_DONE / CONSULTATION_COMPLETED -> Create Prescription + Create Lab Test / Lab Test Ordered badge
+        if (status === 'CONSULTATION_DONE' || status === 'CONSULTATION_COMPLETED') {
+          const hasLabOrder = !!labOrdersMap[apptId];
           return (
-            <div className="flex items-center gap-1.5 flex-wrap">
+            <div className="flex items-center gap-2 flex-wrap">
               <button
                 onClick={() => setViewConsultModalId(apptId)}
                 className="inline-flex items-center gap-1 rounded-xl bg-purple-50 text-purple-700 hover:bg-purple-100 border border-purple-200 px-2.5 py-1.5 text-xs font-semibold transition-all"
+                title="View Consultation Record"
               >
                 <Eye className="h-3.5 w-3.5" />
-                Consult
+                View Consult
               </button>
               <button
                 onClick={() => setAddPrescriptionModalId(apptId)}
-                className="inline-flex items-center gap-1 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 text-xs font-semibold shadow-xs transition-all"
+                className="inline-flex items-center gap-1 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 text-xs font-semibold shadow-xs transition-all cursor-pointer"
               >
                 <Pill className="h-3.5 w-3.5" />
-                Add Prescription
+                Create Prescription
               </button>
-              <button
-                onClick={() => setCreateLabOrderApptId(apptId)}
-                className="inline-flex items-center gap-1 rounded-xl bg-indigo-50 border border-indigo-200 text-indigo-700 hover:bg-indigo-100 px-2.5 py-1.5 text-xs font-semibold transition-all"
-              >
-                <FlaskConical className="h-3.5 w-3.5" />
-                Order Lab
-              </button>
+              {!hasLabOrder ? (
+                <button
+                  onClick={() => setCreateLabOrderApptId(apptId)}
+                  className="inline-flex items-center gap-1 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 text-xs font-semibold shadow-xs transition-all cursor-pointer"
+                >
+                  <FlaskConical className="h-3.5 w-3.5" />
+                  Create Lab Test
+                </button>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 rounded-xl border border-indigo-200 bg-indigo-50 px-2.5 py-1.5 text-xs font-bold text-indigo-700 shadow-2xs">
+                  <FlaskConical className="h-3.5 w-3.5 text-indigo-600" />
+                  Lab Test Ordered
+                </span>
+              )}
               <button
                 disabled={isProcessing}
                 onClick={() => handleCompleteAppointment(apptId)}
                 className="inline-flex items-center gap-1 rounded-xl bg-slate-800 hover:bg-slate-900 text-white px-2.5 py-1.5 text-xs font-semibold transition-all disabled:opacity-50"
+                title="Mark Appointment Completed"
               >
                 <CheckCircle2 className="h-3.5 w-3.5" />
                 Complete
@@ -463,7 +496,12 @@ export default function MyAppointments() {
         appointmentId={createLabOrderApptId}
         isOpen={Boolean(createLabOrderApptId)}
         onClose={() => setCreateLabOrderApptId(null)}
-        onSuccess={fetchAppointments}
+        onSuccess={() => {
+          if (createLabOrderApptId) {
+            setLabOrdersMap((prev) => ({ ...prev, [createLabOrderApptId]: true }));
+          }
+          fetchAppointments();
+        }}
       />
 
       {/* Review Lab Report Modal (PUT /api/lab-reports/{id}/review) */}

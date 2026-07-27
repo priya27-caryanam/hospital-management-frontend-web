@@ -4,7 +4,7 @@
  * 100% Swagger Field Mapping for PatientDashboardResponse (9 fields).
  */
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { Calendar, ClipboardList, Receipt, Stethoscope, ArrowRight, TestTube, CheckCircle, HeartPulse, XCircle, Clock, FileCheck, CreditCard, Bell } from 'lucide-react';
 import dashboardApi from '../../api/dashboardApi';
@@ -13,6 +13,7 @@ import LoadingSpinner from '../../components/common/LoadingSpinner';
 import PatientNotificationsModal from '../../components/patient/PatientNotificationsModal';
 
 export default function PatientDashboard() {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -20,9 +21,10 @@ export default function PatientDashboard() {
 
   useEffect(() => {
     const fetchStats = async () => {
-      if (!user?.userId) return;
+      const patientId = user?.patientId || user?.userId || user?.id;
+      if (!patientId) return;
       try {
-        const res = await dashboardApi.getPatientStats(user.userId);
+        const res = await dashboardApi.getPatientStats(patientId);
         setStats(res.data);
       } catch (err) {
         console.error('Failed to load patient dashboard stats:', err);
@@ -31,7 +33,7 @@ export default function PatientDashboard() {
       }
     };
     fetchStats();
-  }, [user?.userId]);
+  }, [user]);
 
   const cards = [
     {
@@ -145,12 +147,14 @@ export default function PatientDashboard() {
             label="Total Lab Tests"
             value={stats?.totalLabTests ?? 0}
             color="indigo"
+            onClick={() => navigate('/patient/lab-tests')}
           />
           <StatsCard
             icon={FileCheck}
             label="Total Lab Reports"
             value={stats?.totalLabReports ?? 0}
             color="amber"
+            onClick={() => navigate('/patient/lab-reports')}
           />
           <StatsCard
             icon={Receipt}
