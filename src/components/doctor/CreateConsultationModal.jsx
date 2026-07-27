@@ -303,13 +303,45 @@ export default function CreateConsultationModal({ appointmentId, isOpen, onClose
             </div>
           </div>
 
-          {/* Primary Diagnosis */}
+          {/* Primary Diagnosis with Voice Consultation UI */}
           <div>
-            <label className="block text-sm font-semibold text-slate-700 mb-1">
-              Primary Diagnosis (min 5 chars) <span className="text-rose-500">*</span>
-            </label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-sm font-semibold text-slate-700">
+                Primary Diagnosis (min 5 chars) <span className="text-rose-500">*</span>
+              </label>
+              <button
+                type="button"
+                onClick={() => {
+                  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+                  if (!SpeechRecognition) {
+                    toast.error('Voice dictation is not supported by your browser. Please use Chrome or Edge.');
+                    return;
+                  }
+                  try {
+                    const recognition = new SpeechRecognition();
+                    recognition.lang = 'en-US';
+                    recognition.onstart = () => toast.success('Listening... Dictate clinical diagnosis clearly into your mic.');
+                    recognition.onresult = (event) => {
+                      const text = event.results[0][0].transcript;
+                      setDiagnosis((prev) => (prev ? `${prev} ${text}` : text));
+                      toast.success('Voice input recorded!');
+                    };
+                    recognition.onerror = () => toast.error('Voice recognition error. Please try again.');
+                    recognition.start();
+                  } catch (err) {
+                    console.error(err);
+                    toast.error('Could not start voice recognition.');
+                  }
+                }}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 px-2.5 py-1 text-xs font-bold transition-all cursor-pointer"
+                title="Dictate Diagnosis via AI Voice Input"
+              >
+                <Activity className="h-3.5 w-3.5 text-indigo-600 animate-pulse" />
+                Voice Dictation (AI)
+              </button>
+            </div>
             <textarea
-              placeholder="Enter clinical diagnosis (e.g. Viral Fever with Mild Dehydration)..."
+              placeholder="Enter clinical diagnosis or use Voice Dictation (AI)..."
               value={diagnosis}
               onChange={(e) => setDiagnosis(e.target.value)}
               rows={2}

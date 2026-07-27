@@ -70,6 +70,77 @@ export default function BookAppointment() {
   const [booking, setBooking] = useState(false);
   const [createdAppointment, setCreatedAppointment] = useState(null);
 
+  // ==================== OFFLINE PATIENT REGISTRATION STATE ====================
+  const [showOfflineReg, setShowOfflineReg] = useState(false);
+  const [offlineRegLoading, setOfflineRegLoading] = useState(false);
+  const [offlineForm, setOfflineForm] = useState({
+    firstName: '',
+    lastName: '',
+    mobile: '',
+    email: '',
+    dateOfBirth: '',
+    gender: 'MALE',
+    address: '',
+    bloodGroup: 'O+',
+    height: '',
+    weight: '',
+    city: 'Mumbai',
+    state: 'Maharashtra',
+    pincode: '400001',
+    emergencyContact: '',
+    password: 'Patient@123',
+  });
+
+  const handleOfflineRegisterSubmit = async (e) => {
+    e.preventDefault();
+    if (!offlineForm.firstName || !offlineForm.lastName || !offlineForm.mobile || !offlineForm.dateOfBirth || !offlineForm.address) {
+      toast.error('Please fill in all required fields (*)');
+      return;
+    }
+
+    setOfflineRegLoading(true);
+    try {
+      const payload = {
+        ...offlineForm,
+        email: offlineForm.email.trim() || `patient_${Date.now()}@hospital.com`,
+        emergencyContact: offlineForm.emergencyContact.trim() || offlineForm.mobile,
+      };
+
+      const res = await receptionistApi.registerPatient(payload);
+      const newPatient = res.data?.data || res.data;
+      toast.success('Offline patient registered successfully!');
+
+      setShowOfflineReg(false);
+      setOfflineForm({
+        firstName: '',
+        lastName: '',
+        mobile: '',
+        email: '',
+        dateOfBirth: '',
+        gender: 'MALE',
+        address: '',
+        bloodGroup: 'O+',
+        height: '',
+        weight: '',
+        city: 'Mumbai',
+        state: 'Maharashtra',
+        pincode: '400001',
+        emergencyContact: '',
+        password: 'Patient@123',
+      });
+
+      await fetchPatients();
+      if (newPatient && (newPatient.id || newPatient.patientId)) {
+        handleSelectPatient(newPatient);
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error(err.response?.data?.message || 'Failed to register patient offline');
+    } finally {
+      setOfflineRegLoading(false);
+    }
+  };
+
   // ==================== MANAGE APPOINTMENTS STATE ====================
   const [manageAppointments, setManageAppointments] = useState([]);
   const [loadingManageApps, setLoadingManageApps] = useState(false);
@@ -263,6 +334,26 @@ export default function BookAppointment() {
       return;
     }
 
+    // Backend Slot Validation Rules
+    const dateObj = new Date(appointmentDate);
+    const hour = dateObj.getHours();
+    const minute = dateObj.getMinutes();
+
+    if (hour < 10 || hour >= 20) {
+      toast.error('Hospital timing is between 10 AM to 8 PM');
+      return;
+    }
+
+    if (hour >= 14 && hour < 15) {
+      toast.error('Hospital break time is between 2 PM to 3 PM');
+      return;
+    }
+
+    if (minute !== 0 && minute !== 20 && minute !== 40) {
+      toast.error('Appointments must be booked on 20-minute slots (e.g. 10:00, 10:20, 10:40). Please pick a valid time slot.');
+      return;
+    }
+
     setBooking(true);
 
     const primaryApptDate = formatForBackend(appointmentDate);
@@ -306,7 +397,10 @@ export default function BookAppointment() {
       setStep(3); // success view
     } catch (err) {
       console.error(err);
-      toast.error(err.response?.data?.message || 'Failed to book appointment');
+      const backendMsg = typeof err.response?.data === 'string'
+        ? err.response.data
+        : err.response?.data?.message || err.response?.data?.error || 'Failed to book appointment';
+      toast.error(backendMsg);
     } finally {
       setBooking(false);
     }
@@ -328,17 +422,35 @@ export default function BookAppointment() {
 
   // ==================== MANAGE APPOINTMENTS LOGIC ====================
 
-  // Fetch doctors list for filter
-  useEffect(() => {
-    const loadAllDoctors = async () => {
-      try {
-        const res = await doctorApi.getAll();
-        setAllDoctorsList(res.data || []);
-      } catch (err) {
-        console.error('Failed to load doctors list:', err);
+  // Fetch doctors list for filter via departments
+  const fetchAllDoctors = async () => {
+    try {
+      const deptRes = await departmentApi.getAll();
+      const depts = deptRes.data || [];
+      const allDocs = [];
+      for (const d of depts) {
+        try {
+          const docRes = await doctorApi.getByDepartment(d.id);
+          if (Array.isArray(docRes.data)) {
+            allDocs.push(...docRes.data);
+          }
+        } catch (e) {
+          // ignore
+        }
       }
-    };
-    loadAllDoctors();
+      const map = new Map();
+      allDocs.forEach((doc) => map.set(doc.id, doc));
+      const uniqueDocs = Array.from(map.values());
+      setAllDoctorsList(uniqueDocs);
+      return uniqueDocs;
+    } catch (err) {
+      console.error('Failed to load doctors list:', err);
+      return [];
+    }
+  };
+
+  useEffect(() => {
+    fetchAllDoctors();
   }, []);
 
   // Fetch appointments for Manage tab
@@ -446,6 +558,9 @@ export default function BookAppointment() {
   });
 
   const pendingCount = manageAppointments.filter((a) => a.status === 'PENDING').length;
+  const approvedCount = manageAppointments.filter((a) => a.status === 'APPROVED').length;
+  const rejectedCount = manageAppointments.filter((a) => a.status === 'REJECTED').length;
+  const allCount = manageAppointments.length;
 
   // Process Consultation Payment: POST /api/receptionists/consultation-payment/{appointmentId}
   const handleProcessConsultationPayment = async () => {
@@ -650,10 +765,9 @@ export default function BookAppointment() {
           <div className="rounded-2xl border border-blue-100 bg-blue-50/60 p-4 text-xs text-blue-900 flex items-start gap-3 shadow-xs">
             <Info className="h-4 w-4 text-blue-600 flex-shrink-0 mt-0.5" />
             <div>
-              <p className="font-bold text-sm text-blue-900">Walk-in Desk Appointment Booking</p>
+              <p className="font-bold text-sm text-blue-900">Book Walk-in Appointment</p>
               <p className="text-slate-600 mt-0.5 leading-relaxed">
-                Use this screen to create direct in-person appointments for walk-in patients at the receptionist desk. 
-                Online appointment requests submitted by patients are reviewed and approved under{' '}
+                This section is for WALK-IN / OFFLINE registered patients only. Online appointment requests are handled in{' '}
                 <button
                   type="button"
                   onClick={() => setActivePageMode('manage')}
@@ -687,86 +801,211 @@ export default function BookAppointment() {
           <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
             {step === 1 && (
               <div className="space-y-6">
-                <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-                  <h3 className="text-base font-bold text-slate-800">Step 1: Select a patient</h3>
-                  <span className="text-xs font-medium text-slate-500">
-                    {searching ? 'Loading...' : `${filteredPatients.length} patient${filteredPatients.length === 1 ? '' : 's'} available`}
-                  </span>
-                </div>
-
-                <form onSubmit={handlePatientSearch} className="flex gap-4">
-                  <div className="relative flex-1">
-                    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                    <input
-                      type="text"
-                      placeholder="Filter patient by name, email, or mobile..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="w-full pl-10 rounded-xl border border-slate-200 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all"
-                    />
-                  </div>
-                  <button
-                    type="submit"
-                    disabled={searching}
-                    className="rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold px-6 py-2.5 transition-colors text-sm disabled:opacity-50"
-                  >
-                    {searching ? 'Searching...' : 'Search'}
-                  </button>
-                </form>
-
-                <div className="space-y-3">
-                  {searching && patients.length === 0 ? (
-                    <div className="flex items-center justify-center py-12 text-slate-400 text-sm gap-2">
-                      <div className="h-5 w-5 animate-spin rounded-full border-2 border-blue-600 border-t-transparent"></div>
-                      <span>Loading patient list...</span>
+                {showOfflineReg ? (
+                  <div className="space-y-5 border border-emerald-200 bg-emerald-50/20 p-5 rounded-2xl shadow-xs">
+                    <div className="flex items-center justify-between border-b border-emerald-100 pb-3">
+                      <div>
+                        <h3 className="text-base font-bold text-slate-900">Offline Patient Registration</h3>
+                        <p className="text-xs text-slate-500">Register new walk-in patient</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setShowOfflineReg(false)}
+                        className="text-xs font-semibold text-slate-500 hover:text-slate-800 underline"
+                      >
+                        Cancel / Back to Search
+                      </button>
                     </div>
-                  ) : filteredPatients.length > 0 ? (
-                    <div className="divide-y divide-slate-100 rounded-xl border border-slate-200 overflow-hidden max-h-[420px] overflow-y-auto">
-                      {filteredPatients.map((p) => (
-                        <div
-                          key={p.id}
-                          onClick={() => handleSelectPatient(p)}
-                          className="flex items-center justify-between p-4 hover:bg-blue-50/50 cursor-pointer transition-colors group"
-                        >
-                          <div className="flex items-center gap-3">
-                            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-100 text-blue-600 font-bold group-hover:bg-blue-600 group-hover:text-white transition-colors">
-                              {p.firstName?.charAt(0) || 'P'}
-                            </div>
-                            <div>
-                              <p className="font-semibold text-slate-800 group-hover:text-blue-600 transition-colors">
-                                {p.firstName} {p.lastName} <span className="text-xs font-normal text-slate-400">(ID: #{p.id})</span>
-                              </p>
-                              <p className="text-xs text-slate-500">
-                                Mobile: {p.mobile || 'N/A'} {p.email ? `| Email: ${p.email}` : ''}
-                              </p>
-                            </div>
-                          </div>
-                          <span className="text-xs font-semibold text-blue-600 group-hover:translate-x-1 transition-transform inline-flex items-center gap-1">
-                            Select & Proceed →
-                          </span>
+
+                    <form onSubmit={handleOfflineRegisterSubmit} className="space-y-4">
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <div>
+                          <label className="text-xs font-semibold text-slate-700">First Name *</label>
+                          <input
+                            type="text"
+                            placeholder="Enter first name"
+                            value={offlineForm.firstName}
+                            onChange={(e) => setOfflineForm({ ...offlineForm, firstName: e.target.value })}
+                            required
+                            className="w-full rounded-xl border border-slate-200 p-2.5 text-xs outline-none focus:border-emerald-500 bg-white"
+                          />
                         </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="text-center py-8 border border-dashed border-slate-200 rounded-xl">
-                      <p className="text-sm font-medium text-slate-600">No patient records found.</p>
-                      <p className="text-xs text-slate-400 mt-1">Try clearing or changing your search keywords.</p>
-                    </div>
-                  )}
+                        <div>
+                          <label className="text-xs font-semibold text-slate-700">Last Name *</label>
+                          <input
+                            type="text"
+                            placeholder="Enter last name"
+                            value={offlineForm.lastName}
+                            onChange={(e) => setOfflineForm({ ...offlineForm, lastName: e.target.value })}
+                            required
+                            className="w-full rounded-xl border border-slate-200 p-2.5 text-xs outline-none focus:border-emerald-500 bg-white"
+                          />
+                        </div>
+                      </div>
 
-                  {/* Shortcut to Register Walk-in Patient */}
-                  <div className="flex items-center justify-between pt-2 border-t border-slate-100">
-                    <p className="text-xs text-slate-500">Can&apos;t find the patient in the directory?</p>
-                    <button
-                      type="button"
-                      onClick={() => navigate('/receptionist/patients')}
-                      className="inline-flex items-center gap-1.5 rounded-lg bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-600 hover:bg-blue-100 transition-colors"
-                    >
-                      <User className="h-3.5 w-3.5" />
-                      Register New Walk-in Patient
-                    </button>
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <div>
+                          <label className="text-xs font-semibold text-slate-700">Mobile Number *</label>
+                          <input
+                            type="tel"
+                            placeholder="Enter mobile number"
+                            value={offlineForm.mobile}
+                            onChange={(e) => setOfflineForm({ ...offlineForm, mobile: e.target.value })}
+                            required
+                            className="w-full rounded-xl border border-slate-200 p-2.5 text-xs outline-none focus:border-emerald-500 bg-white"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs font-semibold text-slate-700">Email (optional)</label>
+                          <input
+                            type="email"
+                            placeholder="Enter email (optional)"
+                            value={offlineForm.email}
+                            onChange={(e) => setOfflineForm({ ...offlineForm, email: e.target.value })}
+                            className="w-full rounded-xl border border-slate-200 p-2.5 text-xs outline-none focus:border-emerald-500 bg-white"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <div>
+                          <label className="text-xs font-semibold text-slate-700">Date of Birth *</label>
+                          <input
+                            type="date"
+                            value={offlineForm.dateOfBirth}
+                            onChange={(e) => setOfflineForm({ ...offlineForm, dateOfBirth: e.target.value })}
+                            required
+                            className="w-full rounded-xl border border-slate-200 p-2.5 text-xs outline-none focus:border-emerald-500 bg-white"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs font-semibold text-slate-700">Gender *</label>
+                          <select
+                            value={offlineForm.gender}
+                            onChange={(e) => setOfflineForm({ ...offlineForm, gender: e.target.value })}
+                            required
+                            className="w-full rounded-xl border border-slate-200 p-2.5 text-xs outline-none focus:border-emerald-500 bg-white"
+                          >
+                            <option value="MALE">Male</option>
+                            <option value="FEMALE">Female</option>
+                            <option value="OTHER">Other</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="text-xs font-semibold text-slate-700">Address *</label>
+                        <textarea
+                          placeholder="Enter full address"
+                          value={offlineForm.address}
+                          onChange={(e) => setOfflineForm({ ...offlineForm, address: e.target.value })}
+                          rows={2}
+                          required
+                          className="w-full rounded-xl border border-slate-200 p-2.5 text-xs outline-none focus:border-emerald-500 bg-white"
+                        />
+                      </div>
+
+                      <button
+                        type="submit"
+                        disabled={offlineRegLoading}
+                        className="w-full rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2.5 text-xs transition-colors disabled:opacity-50 shadow-sm"
+                      >
+                        {offlineRegLoading ? 'Registering Patient...' : 'Register Patient'}
+                      </button>
+
+                      <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-900 flex items-center gap-2">
+                        <Info className="h-4 w-4 text-emerald-600 flex-shrink-0" />
+                        <span>This patient will be saved as an offline (walk-in) patient. You can now book an appointment.</span>
+                      </div>
+                    </form>
                   </div>
-                </div>
+                ) : (
+                  <>
+                    <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                      <h3 className="text-base font-bold text-slate-800">Search Walk-in Patients</h3>
+                      <span className="text-xs font-medium text-slate-500">
+                        {searching ? 'Loading...' : `${filteredPatients.length} walk-in patient${filteredPatients.length === 1 ? '' : 's'} available`}
+                      </span>
+                    </div>
+
+                    <form onSubmit={handlePatientSearch} className="flex gap-4">
+                      <div className="relative flex-1">
+                        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                        <input
+                          type="text"
+                          placeholder="Search by name, mobile, or email..."
+                          value={searchQuery}
+                          onChange={(e) => setSearchQuery(e.target.value)}
+                          className="w-full pl-10 rounded-xl border border-slate-200 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all"
+                        />
+                      </div>
+                      <button
+                        type="submit"
+                        disabled={searching}
+                        className="rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold px-6 py-2.5 transition-colors text-sm disabled:opacity-50"
+                      >
+                        {searching ? 'Searching...' : 'Search'}
+                      </button>
+                    </form>
+
+                    <div className="space-y-3">
+                      {searching && patients.length === 0 ? (
+                        <div className="flex items-center justify-center py-12 text-slate-400 text-sm gap-2">
+                          <div className="h-5 w-5 animate-spin rounded-full border-2 border-blue-600 border-t-transparent"></div>
+                          <span>Loading patient list...</span>
+                        </div>
+                      ) : filteredPatients.length > 0 ? (
+                        <div className="space-y-2">
+                          <p className="text-xs font-bold text-slate-700">Walk-in Patients (Registered Offline)</p>
+                          <div className="divide-y divide-slate-100 rounded-xl border border-slate-200 overflow-hidden max-h-[420px] overflow-y-auto">
+                            {filteredPatients.map((p) => (
+                            <div
+                              key={p.id}
+                              onClick={() => handleSelectPatient(p)}
+                              className="flex items-center justify-between p-4 hover:bg-blue-50/50 cursor-pointer transition-colors group"
+                            >
+                              <div className="flex items-center gap-3">
+                                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-100 text-blue-600 font-bold group-hover:bg-blue-600 group-hover:text-white transition-colors">
+                                  {p.firstName?.charAt(0) || 'P'}
+                                </div>
+                                <div>
+                                  <p className="font-semibold text-slate-800 group-hover:text-blue-600 transition-colors">
+                                    {p.firstName} {p.lastName} <span className="text-xs font-normal text-slate-400">(ID: #{p.id})</span>
+                                  </p>
+                                  <p className="text-xs text-slate-500">
+                                    Mobile: {p.mobile || 'N/A'} {p.email ? `| Email: ${p.email}` : ''}
+                                  </p>
+                                </div>
+                              </div>
+                              <span className="text-xs font-semibold text-blue-600 group-hover:translate-x-1 transition-transform inline-flex items-center gap-1">
+                                Select & Proceed →
+                              </span>
+                            </div>
+                          ))}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="text-center py-8 border border-dashed border-slate-200 rounded-xl">
+                          <p className="text-sm font-medium text-slate-600">No patient records found.</p>
+                          <p className="text-xs text-slate-400 mt-1">Try clearing or changing your search keywords.</p>
+                        </div>
+                      )}
+
+                      {/* Shortcut to Register Walk-in Patient */}
+                      <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+                        <p className="text-xs text-slate-500">Can&apos;t find the patient in the directory?</p>
+                        <button
+                          type="button"
+                          onClick={() => setShowOfflineReg(true)}
+                          className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-50 border border-emerald-200 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 transition-colors shadow-2xs"
+                        >
+                          <User className="h-3.5 w-3.5" />
+                          Register New Walk-in Patient
+                        </button>
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
             )}
 
@@ -958,12 +1197,12 @@ export default function BookAppointment() {
       {activePageMode === 'manage' && (
         <div className="space-y-6">
           {/* Informational Banner */}
-          <div className="rounded-2xl border border-amber-100 bg-amber-50/60 p-4 text-xs text-amber-900 flex items-start gap-3 shadow-xs">
-            <Info className="h-4 w-4 text-amber-600 flex-shrink-0 mt-0.5" />
+          <div className="rounded-2xl border border-purple-100 bg-purple-50/60 p-4 text-xs text-purple-900 flex items-start gap-3 shadow-xs">
+            <Info className="h-4 w-4 text-purple-600 flex-shrink-0 mt-0.5" />
             <div>
-              <p className="font-bold text-sm text-amber-900">Online & Hospital Requests Queue</p>
+              <p className="font-bold text-sm text-purple-900">Online Appointment Requests</p>
               <p className="text-slate-600 mt-0.5 leading-relaxed">
-                Review and approve or reject online appointment requests submitted by patients via the portal. You can also record consultation billing for completed appointments.
+                Only online appointment requests from Patient Portal are shown here. Walk-in appointments are not listed in this section. Review and approve or reject patient requests below.
               </p>
             </div>
           </div>
@@ -1013,11 +1252,11 @@ export default function BookAppointment() {
           {/* Status Filter Tabs */}
           <div className="flex items-center gap-2 overflow-x-auto pb-2">
             {[
-              { id: 'ALL', label: 'All Appointments' },
-              { id: 'PENDING', label: `Pending Approval (${pendingCount})`, badge: true },
-              { id: 'APPROVED', label: 'Approved' },
+              { id: 'PENDING', label: `Pending (${pendingCount})` },
+              { id: 'APPROVED', label: `Approved (${approvedCount})` },
+              { id: 'REJECTED', label: `Rejected (${rejectedCount})` },
               { id: 'COMPLETED', label: 'Completed' },
-              { id: 'REJECTED', label: 'Rejected' },
+              { id: 'ALL', label: `All (${allCount})` },
             ].map((tab) => (
               <button
                 key={tab.id}

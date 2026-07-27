@@ -101,7 +101,7 @@ export default function SearchDoctor() {
                       <h3 className="font-bold text-slate-800 text-sm group-hover:text-blue-600 transition-colors">
                         Dr. {doc.name || `${doc.firstName} ${doc.lastName}`}
                       </h3>
-                      <p className="text-xs font-semibold text-blue-600">{doc.specialization}</p>
+                      <p className="text-xs font-semibold text-blue-600">{doc.specializationName || doc.specialization || doc.departmentName}</p>
                     </div>
                   </div>
 

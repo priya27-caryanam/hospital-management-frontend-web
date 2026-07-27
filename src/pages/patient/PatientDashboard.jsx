@@ -6,15 +6,17 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { Calendar, ClipboardList, Receipt, Stethoscope, ArrowRight, TestTube, CheckCircle, HeartPulse, XCircle, Clock, FileCheck, CreditCard } from 'lucide-react';
+import { Calendar, ClipboardList, Receipt, Stethoscope, ArrowRight, TestTube, CheckCircle, HeartPulse, XCircle, Clock, FileCheck, CreditCard, Bell } from 'lucide-react';
 import dashboardApi from '../../api/dashboardApi';
 import StatsCard from '../../components/common/StatsCard';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
+import PatientNotificationsModal from '../../components/patient/PatientNotificationsModal';
 
 export default function PatientDashboard() {
   const { user } = useAuth();
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [showNotifications, setShowNotifications] = useState(false);
 
   useEffect(() => {
     const fetchStats = async () => {
@@ -81,15 +83,28 @@ export default function PatientDashboard() {
   return (
     <div className="space-y-6">
       {/* Welcome Banner */}
-      <div className="rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 p-6 text-white shadow-md relative overflow-hidden">
+      <div className="rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 p-6 text-white shadow-md relative overflow-hidden flex items-center justify-between">
         <div className="absolute right-0 bottom-0 top-0 w-1/3 bg-white/5 rounded-l-full blur-2xl pointer-events-none" />
-        <div className="relative space-y-2">
+        <div className="relative space-y-2 max-w-xl">
           <h1 className="text-2xl font-bold tracking-wide font-sans">Welcome Back, {user?.name || 'Patient'}!</h1>
-          <p className="text-sm text-blue-100 max-w-xl">
+          <p className="text-sm text-blue-100">
             Access your medical bills, browse specialist practitioners, track scheduled doctor appointments, and check issued prescription guides.
           </p>
         </div>
+        <button
+          onClick={() => setShowNotifications(true)}
+          className="relative inline-flex items-center gap-2 rounded-xl bg-white/20 hover:bg-white/30 backdrop-blur-md px-4 py-2 text-sm font-semibold text-white transition-all cursor-pointer shadow-xs shrink-0"
+        >
+          <Bell className="h-4 w-4" />
+          <span>Notifications</span>
+        </button>
       </div>
+
+      <PatientNotificationsModal
+        patientId={user?.userId}
+        isOpen={showNotifications}
+        onClose={() => setShowNotifications(false)}
+      />
 
       {/* 100% Real Stats Cards from PatientDashboardResponse (9 fields) */}
       <div>

@@ -6,18 +6,14 @@
 import axiosInstance from './axios';
 
 const labReportApi = {
-  /** POST /api/lab-reports/upload — Upload a lab report */
+  /** POST /api/lab-reports/upload?labOrderId={id}&report={report} — Upload a lab report */
   upload: (labOrderId, report, file) => {
-    let formData;
-    if (labOrderId instanceof FormData) {
-      formData = labOrderId;
-    } else {
-      formData = new FormData();
-      formData.append('labOrderId', labOrderId);
-      formData.append('report', report);
+    let formData = new FormData();
+    if (file) {
       formData.append('file', file);
     }
     return axiosInstance.post('/lab-reports/upload', formData, {
+      params: { labOrderId, report },
       headers: { 'Content-Type': 'multipart/form-data' },
     });
   },

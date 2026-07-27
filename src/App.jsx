@@ -15,6 +15,7 @@ import RegisterPage from './pages/RegisterPage';
 // Admin pages
 import AdminDashboard from './pages/admin/AdminDashboard';
 import ManageDepartments from './pages/admin/ManageDepartments';
+import ManageSpecializations from './pages/admin/ManageSpecializations';
 import RegisterDoctor from './pages/admin/RegisterDoctor';
 import RegisterNurse from './pages/admin/RegisterNurse';
 import RegisterReceptionist from './pages/admin/RegisterReceptionist';
@@ -39,7 +40,11 @@ import AssignedPatients from './pages/nurse/AssignedPatients';
 
 // Receptionist pages
 import ReceptionistDashboard from './pages/receptionist/ReceptionistDashboard';
+import DoctorAvailability from './pages/receptionist/DoctorAvailability';
 import ReceptionistPatientSearch from './pages/receptionist/PatientSearch';
+import OfflinePatientRegistration from './pages/receptionist/OfflinePatientRegistration';
+import BookWalkInAppointment from './pages/receptionist/BookWalkInAppointment';
+import OnlineAppointmentRequests from './pages/receptionist/OnlineAppointmentRequests';
 import ReceptionistBookAppointment from './pages/receptionist/BookAppointment';
 import ReceptionistBilling from './pages/receptionist/Billing';
 import SymptomsSuggestion from './pages/receptionist/SymptomsSuggestion';
@@ -85,6 +90,7 @@ export default function App() {
         <Route index element={<Navigate to="dashboard" replace />} />
         <Route path="dashboard" element={<AdminDashboard />} />
         <Route path="departments" element={<ManageDepartments />} />
+        <Route path="specializations" element={<ManageSpecializations />} />
         <Route path="register-doctor" element={<RegisterDoctor />} />
         <Route path="register-nurse" element={<RegisterNurse />} />
         <Route path="register-receptionist" element={<RegisterReceptionist />} />
@@ -139,7 +145,11 @@ export default function App() {
       >
         <Route index element={<Navigate to="dashboard" replace />} />
         <Route path="dashboard" element={<ReceptionistDashboard />} />
+        <Route path="availability" element={<DoctorAvailability />} />
         <Route path="patients" element={<ReceptionistPatientSearch />} />
+        <Route path="offline-registration" element={<OfflinePatientRegistration />} />
+        <Route path="book-walkin" element={<BookWalkInAppointment />} />
+        <Route path="online-requests" element={<OnlineAppointmentRequests />} />
         <Route path="appointments" element={<ReceptionistBookAppointment />} />
         <Route path="billing" element={<ReceptionistBilling />} />
         <Route path="symptoms" element={<SymptomsSuggestion />} />

@@ -98,8 +98,8 @@ export default function DoctorDashboard() {
               {doctor?.lastName ?? ''}
             </h1>
             <p className="mt-1 text-blue-100">
-              {doctor?.specialization
-                ? `${doctor.specialization} Specialist`
+              {doctor?.specializationName || doctor?.specialization
+                ? `${doctor.specializationName || doctor.specialization} Specialist`
                 : 'Your dashboard overview'}
             </p>
           </div>
@@ -115,7 +115,7 @@ export default function DoctorDashboard() {
               <StatsCard
                 icon={Stethoscope}
                 label="Specialization"
-                value={doctor.specialization || '—'}
+                value={doctor.specializationName || doctor.specialization || '—'}
                 color="blue"
               />
               <StatsCard

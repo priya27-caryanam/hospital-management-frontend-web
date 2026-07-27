@@ -62,7 +62,7 @@ export default function DoctorProfile() {
   ];
 
   const professionalFields = [
-    { icon: Stethoscope, label: 'Specialization', value: doctor.specialization },
+    { icon: Stethoscope, label: 'Specialization', value: doctor.specializationName || doctor.specialization },
     { icon: Building2, label: 'Department', value: doctor.departmentName || doctor.department },
     { icon: GraduationCap, label: 'Qualification', value: doctor.qualification },
     { icon: BriefcaseMedical, label: 'Experience', value: doctor.experience ? `${doctor.experience} years` : null },
@@ -101,7 +101,7 @@ export default function DoctorProfile() {
             <h2 className="text-2xl font-bold">
               Dr. {doctor.firstName} {doctor.lastName}
             </h2>
-            <p className="mt-1 text-blue-100">{doctor.specialization || 'Specialist'}</p>
+            <p className="mt-1 text-blue-100">{doctor.specializationName || doctor.specialization || 'Specialist'}</p>
             <p className="text-sm text-blue-200">{doctor.email}</p>
           </div>
         </div>

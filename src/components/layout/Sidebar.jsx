@@ -16,6 +16,7 @@ const roleNavItems = {
   ADMIN: [
     { path: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { path: '/admin/departments', label: 'Manage Departments', icon: Building2 },
+    { path: '/admin/specializations', label: 'Manage Specializations', icon: Building2 },
     { path: '/admin/register-doctor', label: 'Register Doctor', icon: UserPlus },
     { path: '/admin/register-nurse', label: 'Register Nurse', icon: UserPlus },
     { path: '/admin/register-receptionist', label: 'Register Receptionist', icon: UserPlus },
@@ -40,8 +41,11 @@ const roleNavItems = {
   ],
   RECEPTIONIST: [
     { path: '/receptionist/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { path: '/receptionist/availability', label: 'Daily Doctor Availability', icon: CalendarDays },
     { path: '/receptionist/patients', label: 'Patient Search', icon: Search },
-    { path: '/receptionist/appointments', label: 'Book Appointment', icon: CalendarDays },
+    { path: '/receptionist/offline-registration', label: 'Offline Patient Registration', icon: UserPlus },
+    { path: '/receptionist/book-walkin', label: 'Book Walk-in Appointment', icon: CalendarDays },
+    { path: '/receptionist/online-requests', label: 'Online Appointment Requests', icon: ClipboardList },
     { path: '/receptionist/billing', label: 'Billing', icon: Receipt },
     { path: '/receptionist/symptoms', label: 'Symptoms Suggestion', icon: HeartPulse },
   ],

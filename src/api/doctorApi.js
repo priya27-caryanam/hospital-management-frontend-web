@@ -14,11 +14,6 @@ const doctorApi = {
   getByDepartment: (departmentId) => {
     return axiosInstance.get(`/doctors/department/${departmentId}`);
   },
-
-  /** GET /api/doctors — Get all Doctors */
-  getAll: () => {
-    return axiosInstance.get('/doctors');
-  },
 };
 
 export default doctorApi;

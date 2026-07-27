@@ -226,22 +226,22 @@ export default function MyAppointments() {
         const status = row.status || 'PENDING';
         const isProcessing = actionLoadingId === apptId;
 
-        // PENDING -> Approve / Reject
+        // PENDING -> Doctor can Approve or Reject
         if (status === 'PENDING') {
           return (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 flex-wrap">
               <button
-                disabled={isProcessing}
                 onClick={() => handleApprove(apptId)}
-                className="inline-flex items-center gap-1 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 text-xs font-semibold shadow-xs transition-all disabled:opacity-50"
+                disabled={isProcessing}
+                className="inline-flex items-center gap-1 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 text-xs font-semibold shadow-xs transition-all disabled:opacity-50 cursor-pointer"
               >
                 <CheckCircle2 className="h-3.5 w-3.5" />
                 Approve
               </button>
               <button
-                disabled={isProcessing}
                 onClick={() => handleReject(apptId)}
-                className="inline-flex items-center gap-1 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 hover:bg-rose-100 px-3 py-1.5 text-xs font-semibold transition-all disabled:opacity-50"
+                disabled={isProcessing}
+                className="inline-flex items-center gap-1 rounded-xl bg-rose-600 hover:bg-rose-700 text-white px-3 py-1.5 text-xs font-semibold shadow-xs transition-all disabled:opacity-50 cursor-pointer"
               >
                 <XCircle className="h-3.5 w-3.5" />
                 Reject
@@ -250,7 +250,7 @@ export default function MyAppointments() {
           );
         }
 
-        // APPROVED -> Record Consultation / Order Lab Test / Consultation Completed
+        // APPROVED / SCHEDULED -> Record Consult / Order Lab Test / Consult Done
         if (status === 'APPROVED' || status === 'SCHEDULED') {
           return (
             <div className="flex items-center gap-1.5 flex-wrap">

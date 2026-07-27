@@ -14,11 +14,6 @@ const patientApi = {
   search: (query = '') => {
     return axiosInstance.get('/patients/search', { params: { query } });
   },
-
-  /** GET /api/patients — Get all Patients (RECEPTIONIST/ADMIN) */
-  getAll: () => {
-    return axiosInstance.get('/patients');
-  },
 };
 
 export default patientApi;

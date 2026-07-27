@@ -24,8 +24,9 @@ export default function AssignedPatients() {
         setPatients(res.data || []);
         setFilteredPatients(res.data || []);
       } catch (err) {
-        console.error(err);
-        toast.error(err.response?.data?.message || 'Failed to fetch assigned patients');
+        console.warn('GET /api/nurses/{id}/assigned-patients endpoint not available in backend OpenAPI spec:', err);
+        setPatients([]);
+        setFilteredPatients([]);
       } finally {
         setLoading(false);
       }
@@ -76,6 +77,16 @@ export default function AssignedPatients() {
       <div>
         <h1 className="text-2xl font-bold text-slate-900">Assigned Patients</h1>
         <p className="text-sm text-slate-500">Monitor and view medical details of patients assigned to your care</p>
+      </div>
+
+      {/* Backend Support Required Warning Banner */}
+      <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-xs text-amber-900 space-y-1">
+        <p className="font-bold flex items-center gap-1.5 text-sm text-amber-800">
+          Backend Support Required
+        </p>
+        <p>
+          The endpoint <code className="bg-amber-100 px-1 py-0.5 rounded font-mono text-[11px]">GET /api/nurses/&lbrace;nurseId&rbrace;/assigned-patients</code> is not present in the Backend OpenAPI spec. Nurse patient assignment functionality requires backend API implementation.
+        </p>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3 items-start">
