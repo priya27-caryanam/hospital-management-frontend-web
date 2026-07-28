@@ -773,7 +773,10 @@ export default function BookAppointment() {
         {/* Main Tabs */}
         <div className="flex items-center rounded-xl bg-slate-100 p-1">
           <button
-            onClick={() => setActivePageMode('book')}
+            onClick={() => {
+              setActivePageMode('book');
+              resetStepper();
+            }}
             className={`flex items-center gap-2 rounded-lg px-4 py-2 text-xs font-bold transition-all ${activePageMode === 'book' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}
           >
             <Calendar className="h-4 w-4" />

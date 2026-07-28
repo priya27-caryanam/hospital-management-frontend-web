@@ -90,18 +90,21 @@ export default function NurseDashboard() {
             label="Department"
             value={nurse.departmentName || nurse.department || '—'}
             color="blue"
+            onClick={() => navigate('/nurse/profile')}
           />
           <StatsCard
             icon={Clock}
             label="Shift"
             value={nurse.shift || '—'}
             color="amber"
+            onClick={() => navigate('/nurse/profile')}
           />
           <StatsCard
             icon={GraduationCap}
             label="Qualification"
             value={nurse.qualification || '—'}
             color="green"
+            onClick={() => navigate('/nurse/profile')}
           />
         </div>
       )}

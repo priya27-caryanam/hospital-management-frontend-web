@@ -117,30 +117,35 @@ export default function PatientDashboard() {
             label="Total Appointments"
             value={stats?.totalAppointments ?? 0}
             color="blue"
+            onClick={() => navigate('/patient/appointments')}
           />
           <StatsCard
             icon={Clock}
             label="Upcoming Appointments"
             value={stats?.upcomingAppointments ?? 0}
             color="purple"
+            onClick={() => navigate('/patient/appointments')}
           />
           <StatsCard
             icon={CheckCircle}
             label="Completed Appointments"
             value={stats?.completedAppointments ?? 0}
             color="emerald"
+            onClick={() => navigate('/patient/appointments')}
           />
           <StatsCard
             icon={XCircle}
             label="Cancelled Appointments"
             value={stats?.cancelledAppointments ?? 0}
             color="rose"
+            onClick={() => navigate('/patient/appointments')}
           />
           <StatsCard
             icon={ClipboardList}
             label="Total Prescriptions"
             value={stats?.totalPrescriptions ?? 0}
             color="cyan"
+            onClick={() => navigate('/patient/prescriptions')}
           />
           <StatsCard
             icon={TestTube}
@@ -161,12 +166,14 @@ export default function PatientDashboard() {
             label="Total Medical Bills"
             value={stats?.totalBills ?? 0}
             color="blue"
+            onClick={() => navigate('/patient/bills')}
           />
           <StatsCard
             icon={CreditCard}
             label="Paid Bills"
             value={stats?.paidBills ?? 0}
             color="emerald"
+            onClick={() => navigate('/patient/bills')}
           />
         </div>
       </div>

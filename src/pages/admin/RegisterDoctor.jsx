@@ -1,6 +1,9 @@
 /**
- * Register Doctor Page
- * Professional registration form for new doctors matching POST /api/auth/register/doctor
+ * Register Doctor & Doctor Directory Page (Admin Panel)
+ * Professional registration form and doctor directory matching OpenAPI spec:
+ *   - POST /api/auth/register/doctor — Register new doctor
+ *   - GET /api/doctors/department/{departmentId} — List doctors by department
+ *   - GET /api/doctors/{id} — View doctor profile details
  *
  * OpenAPI Request Schema (DoctorRegistrationRequest):
  *   { firstName, lastName, email, mobile, password, gender, departmentId, qualification, experience, specializationId, consultationFee, licenseNumber }
@@ -8,13 +11,16 @@
  * OpenAPI Response Schema (ApiResponseDoctorResponse -> DoctorResponse):
  *   { message, status, data: { id, firstName, lastName, email, mobile, departmentId, departmentName, qualification, gender, experience, specializationId, specializationName, consultationFee, available, profileImage, role, status, licenseNumber } }
  */
-import { useState, useEffect } from 'react';
-import { Stethoscope, CheckCircle, X } from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
+import { Stethoscope, CheckCircle, X, Eye, EyeOff, Building2, Award, GraduationCap, Phone, Mail, Wallet, Shield } from 'lucide-react';
 import toast from 'react-hot-toast';
 import authApi from '../../api/authApi';
 import departmentApi from '../../api/departmentApi';
 import specializationApi from '../../api/specializationApi';
+import doctorApi from '../../api/doctorApi';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
+import DataTable from '../../components/common/DataTable';
+import SearchBar from '../../components/common/SearchBar';
 
 const INITIAL_FORM = {
   firstName: '',
@@ -37,9 +43,46 @@ export default function RegisterDoctor() {
   const [specializations, setSpecializations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const [registeredDoctorResult, setRegisteredDoctorResult] = useState(null);
 
-  /** Fetch departments and all specializations for dropdowns */
+  // Doctors directory state
+  const [doctorsList, setDoctorsList] = useState([]);
+  const [loadingDoctors, setLoadingDoctors] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+
+  // View details modal state
+  const [viewingDoctor, setViewingDoctor] = useState(null);
+  const [loadingDetails, setLoadingDetails] = useState(false);
+
+  /** Fetch all doctors across departments using GET /api/doctors/department/{deptId} */
+  const fetchAllDoctors = async (deptList) => {
+    if (!deptList || deptList.length === 0) return;
+    setLoadingDoctors(true);
+    try {
+      const promises = deptList.map((d) =>
+        doctorApi.getByDepartment(d.id).catch(() => ({ data: [] }))
+      );
+      const results = await Promise.all(promises);
+      const map = new Map();
+      results.forEach((res) => {
+        const list = Array.isArray(res.data) ? res.data : [];
+        list.forEach((doc) => {
+          if (doc && doc.id) {
+            map.set(doc.id, doc);
+          }
+        });
+      });
+      setDoctorsList(Array.from(map.values()));
+    } catch (err) {
+      console.error('Failed to load doctors directory:', err);
+    } finally {
+      setLoadingDoctors(false);
+    }
+  };
+
+  /** Fetch departments and all specializations for dropdowns and directory */
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -47,8 +90,12 @@ export default function RegisterDoctor() {
           departmentApi.getAll(),
           specializationApi.getAll(),
         ]);
-        setDepartments(deptRes.data || []);
+        const deptData = deptRes.data || [];
+        setDepartments(deptData);
         setSpecializations(specRes.data || []);
+
+        // Load doctor listings for all departments
+        await fetchAllDoctors(deptData);
       } catch (err) {
         toast.error('Failed to load department or specialization metadata');
         console.error(err);
@@ -64,12 +111,42 @@ export default function RegisterDoctor() {
     ? specializations.filter((s) => String(s.departmentId) === String(formData.departmentId))
     : specializations;
 
+  /** Filter doctors for directory table */
+  const filteredDoctors = useMemo(() => {
+    if (!searchQuery.trim()) return doctorsList;
+    const q = searchQuery.toLowerCase().trim();
+    return doctorsList.filter((doc) => {
+      const name = `Dr. ${doc.firstName || ''} ${doc.lastName || ''} ${doc.name || ''}`.toLowerCase();
+      const email = (doc.email || '').toLowerCase();
+      const mobile = (doc.mobile || '').toLowerCase();
+      const dept = (doc.departmentName || doc.department || '').toLowerCase();
+      const spec = (doc.specializationName || doc.specialization || '').toLowerCase();
+      const license = (doc.licenseNumber || '').toLowerCase();
+      const idStr = String(doc.id || '');
+      return name.includes(q) || email.includes(q) || mobile.includes(q) || dept.includes(q) || spec.includes(q) || license.includes(q) || idStr.includes(q);
+    });
+  }, [doctorsList, searchQuery]);
+
+  /** Fetch doctor details for View Details Modal (GET /api/doctors/{id}) */
+  const handleViewDetails = async (id) => {
+    setLoadingDetails(true);
+    setViewingDoctor(null);
+    try {
+      const res = await doctorApi.getById(id);
+      setViewingDoctor(res.data);
+    } catch (err) {
+      toast.error('Failed to fetch doctor profile details');
+      console.error(err);
+    } finally {
+      setLoadingDetails(false);
+    }
+  };
+
   /** Handle input changes */
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => {
       const updated = { ...prev, [name]: value };
-      // Reset specialization selection if department changes
       if (name === 'departmentId') {
         updated.specializationId = '';
       }
@@ -158,6 +235,11 @@ export default function RegisterDoctor() {
       setRegisteredDoctorResult(res.data);
       toast.success(res.data?.message || 'Doctor registered successfully');
       setFormData(INITIAL_FORM);
+
+      // Refresh doctor directory
+      if (departments.length > 0) {
+        fetchAllDoctors(departments);
+      }
     } catch (err) {
       const errData = err.response?.data;
       const msg = errData?.message || errData?.error || 'Registration failed';
@@ -173,21 +255,74 @@ export default function RegisterDoctor() {
   const inputClass =
     'w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100 transition-all bg-white';
 
+  /** DataTable column definitions displaying all Doctor response fields */
+  const columns = [
+    { header: 'ID', accessor: 'id', render: (row) => <span className="font-mono font-bold text-slate-800">#{row.id}</span> },
+    {
+      header: 'Doctor Name',
+      render: (row) => (
+        <span className="font-bold text-slate-900">
+          Dr. {row.firstName ? `${row.firstName} ${row.lastName}` : row.name || 'Doctor'}
+        </span>
+      ),
+    },
+    { header: 'Email', accessor: 'email' },
+    { header: 'Mobile', accessor: 'mobile' },
+    {
+      header: 'Department',
+      render: (row) => (
+        <span className="inline-flex rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-bold text-blue-700">
+          {row.departmentName || row.department || '—'}
+        </span>
+      ),
+    },
+    {
+      header: 'Specialization',
+      render: (row) => (
+        <span className="text-xs font-semibold text-slate-700">
+          {row.specializationName || row.specialization || '—'}
+        </span>
+      ),
+    },
+    {
+      header: 'Fee',
+      render: (row) => (
+        <span className="font-bold text-emerald-700">
+          ₹{row.consultationFee ?? '—'}
+        </span>
+      ),
+    },
+    { header: 'License #', accessor: 'licenseNumber', render: (row) => <span className="text-xs font-mono text-slate-600">{row.licenseNumber || '—'}</span> },
+    {
+      header: 'Actions',
+      render: (row) => (
+        <button
+          onClick={() => handleViewDetails(row.id)}
+          className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-blue-600 transition-colors"
+          title="View Doctor Details"
+        >
+          <Eye className="h-4 w-4" />
+        </button>
+      ),
+    },
+  ];
+
   return (
-    <div className="mx-auto max-w-4xl space-y-6">
+    <div className="mx-auto max-w-5xl space-y-8">
       {/* Page Header */}
       <div>
         <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
           <Stethoscope className="h-7 w-7 text-blue-600" />
-          Register Doctor
+          Doctor Management & Registration
         </h1>
         <p className="mt-1 text-sm text-slate-500">
-          Add a new practitioner to the hospital system with 100% OpenAPI schema validation
+          Register new medical practitioners and view registered doctors directory
         </p>
       </div>
 
       {/* Form Card */}
       <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8 space-y-6">
+        <h2 className="text-lg font-bold text-slate-900 border-b border-slate-100 pb-3">Register New Doctor</h2>
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Personal Information */}
           <div>
@@ -238,6 +373,8 @@ export default function RegisterDoctor() {
                   name="mobile"
                   value={formData.mobile}
                   onChange={handleChange}
+                  maxLength={10}
+                  onInput={(e) => { e.target.value = e.target.value.replace(/[^0-9]/g, '').slice(0, 10); }}
                   required
                   className={inputClass}
                   placeholder="9876543210"
@@ -245,16 +382,29 @@ export default function RegisterDoctor() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Password *</label>
-                <input
-                  type="password"
-                  name="password"
-                  value={formData.password}
-                  onChange={handleChange}
-                  required
-                  className={inputClass}
-                  placeholder="Password@123"
-                  autoComplete="new-password"
-                />
+                <div className="relative">
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    name="password"
+                    value={formData.password}
+                    onChange={handleChange}
+                    required
+                    className={`${inputClass} !pr-10`}
+                    placeholder="Password@123"
+                    autoComplete="new-password"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((prev) => !prev)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                    tabIndex={-1}
+                  >
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+                <p className="mt-1 text-xs text-slate-500">
+                  8-20 characters with uppercase, lowercase, number and special character (@$!%*?&#)
+                </p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Gender *</label>
@@ -328,7 +478,7 @@ export default function RegisterDoctor() {
           </div>
         </form>
 
-        {/* Success Modal / Result */}
+        {/* Success Result Card */}
         {registeredDoctorResult && (
           <div className="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-6 space-y-4 animate-fade-in">
             <div className="flex items-center justify-between">
@@ -391,19 +541,100 @@ export default function RegisterDoctor() {
                   <span className="text-slate-400 font-medium">License #</span>
                   <p className="font-bold text-slate-800">{registeredDoctorResult.data.licenseNumber}</p>
                 </div>
-                <div>
-                  <span className="text-slate-400 font-medium">Available</span>
-                  <p className="font-bold text-slate-800">{registeredDoctorResult.data.available ? 'Yes' : 'No'}</p>
-                </div>
-                <div>
-                  <span className="text-slate-400 font-medium">Role / Status</span>
-                  <p className="font-bold text-slate-800">{registeredDoctorResult.data.role} ({registeredDoctorResult.data.status})</p>
-                </div>
               </div>
             )}
           </div>
         )}
       </div>
+
+      {/* ─── Registered Doctors Directory Table (Fix for BUG-DASH-006) ─── */}
+      <div className="space-y-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+              <Stethoscope className="h-5 w-5 text-blue-600" />
+              Registered Doctors Directory
+            </h2>
+            <p className="text-xs text-slate-500">
+              View and manage all registered medical practitioners in the hospital system
+            </p>
+          </div>
+          <SearchBar
+            placeholder="Search doctors by name, email, mobile, department, or license..."
+            onSearch={(val) => {
+              setSearchQuery(val);
+              setCurrentPage(1);
+            }}
+            className="max-w-md"
+          />
+        </div>
+
+        <DataTable
+          columns={columns}
+          data={filteredDoctors}
+          loading={loadingDoctors}
+          emptyMessage="No registered doctors found."
+          pageSize={10}
+          currentPage={currentPage}
+          onPageChange={setCurrentPage}
+        />
+      </div>
+
+      {/* ─── View Details Modal (GET /api/doctors/{id}) ─── */}
+      {(viewingDoctor || loadingDetails) && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm px-4">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl space-y-5 animate-fade-in">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                <Stethoscope className="h-5 w-5 text-blue-600" />
+                Doctor Profile Details
+              </h3>
+              <button
+                onClick={() => setViewingDoctor(null)}
+                className="rounded-full p-1 hover:bg-slate-100 text-slate-500 transition-colors"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {loadingDetails ? (
+              <LoadingSpinner />
+            ) : viewingDoctor ? (
+              <div className="space-y-4">
+                <div className="rounded-xl border border-slate-100 bg-slate-50 p-4 divide-y divide-slate-100 text-sm">
+                  {[
+                    ['Doctor ID', `#${viewingDoctor.id}`],
+                    ['Doctor Name', `Dr. ${viewingDoctor.firstName ? `${viewingDoctor.firstName} ${viewingDoctor.lastName}` : viewingDoctor.name || 'Doctor'}`],
+                    ['Email Address', viewingDoctor.email],
+                    ['Mobile Number', viewingDoctor.mobile],
+                    ['Gender', viewingDoctor.gender],
+                    ['Department', viewingDoctor.departmentName || viewingDoctor.department || '—'],
+                    ['Specialization', viewingDoctor.specializationName || viewingDoctor.specialization || '—'],
+                    ['Qualification', viewingDoctor.qualification || '—'],
+                    ['Experience', `${viewingDoctor.experience ?? 0} Years`],
+                    ['Consultation Fee', viewingDoctor.consultationFee != null ? `₹${viewingDoctor.consultationFee}` : '—'],
+                    ['License Number', viewingDoctor.licenseNumber || '—'],
+                    ['Available', viewingDoctor.available ? 'Yes' : 'No'],
+                    ['Role / Status', `${viewingDoctor.role || 'DOCTOR'} (${viewingDoctor.status || 'ACTIVE'})`],
+                  ].map(([label, val]) => (
+                    <div key={label} className="flex justify-between py-2.5 first:pt-0 last:pb-0">
+                      <span className="text-slate-500 font-medium text-xs">{label}</span>
+                      <span className="font-bold text-slate-800 text-sm">{val || '—'}</span>
+                    </div>
+                  ))}
+                </div>
+
+                <button
+                  onClick={() => setViewingDoctor(null)}
+                  className="w-full rounded-xl bg-slate-800 text-white font-semibold py-2.5 text-sm hover:bg-slate-900 transition-colors"
+                >
+                  Close
+                </button>
+              </div>
+            ) : null}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

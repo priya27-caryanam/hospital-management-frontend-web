@@ -3,11 +3,13 @@
  * Displays pharmacy metrics using PharmacyDashboardResponse: totalMedicines, lowStockMedicines, totalDispensed
  */
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Pill, AlertTriangle, CheckCircle, Package } from 'lucide-react';
 import dashboardApi from '../../api/dashboardApi';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 
 export default function PharmacistDashboard() {
+  const navigate = useNavigate();
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -35,8 +37,11 @@ export default function PharmacistDashboard() {
       </div>
 
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
-        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm flex items-center gap-4">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-100 text-blue-600">
+        <div
+          onClick={() => navigate('/pharmacist/medicines')}
+          className="group cursor-pointer rounded-2xl border border-slate-200 bg-white p-6 shadow-sm flex items-center gap-4 hover:shadow-md hover:-translate-y-0.5 transition-all"
+        >
+          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-100 text-blue-600 transition-transform group-hover:scale-105">
             <Package className="h-6 w-6" />
           </div>
           <div>
@@ -45,8 +50,11 @@ export default function PharmacistDashboard() {
           </div>
         </div>
 
-        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm flex items-center gap-4">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-amber-100 text-amber-600">
+        <div
+          onClick={() => navigate('/pharmacist/medicines')}
+          className="group cursor-pointer rounded-2xl border border-slate-200 bg-white p-6 shadow-sm flex items-center gap-4 hover:shadow-md hover:-translate-y-0.5 transition-all"
+        >
+          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-amber-100 text-amber-600 transition-transform group-hover:scale-105">
             <AlertTriangle className="h-6 w-6" />
           </div>
           <div>
@@ -55,8 +63,11 @@ export default function PharmacistDashboard() {
           </div>
         </div>
 
-        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm flex items-center gap-4">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-100 text-emerald-600">
+        <div
+          onClick={() => navigate('/pharmacist/prescriptions')}
+          className="group cursor-pointer rounded-2xl border border-slate-200 bg-white p-6 shadow-sm flex items-center gap-4 hover:shadow-md hover:-translate-y-0.5 transition-all"
+        >
+          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-100 text-emerald-600 transition-transform group-hover:scale-105">
             <CheckCircle className="h-6 w-6" />
           </div>
           <div>

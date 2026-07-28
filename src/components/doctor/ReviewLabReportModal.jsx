@@ -116,8 +116,21 @@ export default function ReviewLabReportModal({ labOrderId, isOpen, onClose, onSu
                 <div><span className="text-slate-400 font-medium">Order ID:</span> #{reportData.labOrderId}</div>
                 <div className="col-span-2"><span className="text-slate-400 font-medium">Uploaded Date:</span> {formatDate(reportData.createdAt)}</div>
                 {reportData.filePath && (
-                  <div className="col-span-2 text-blue-600 font-mono underline truncate">
-                    Attachment: {reportData.filePath}
+                  <div className="col-span-2 pt-1">
+                    <span className="text-slate-400 font-medium block mb-1">Uploaded Diagnostic Document:</span>
+                    <a
+                      href={
+                        reportData.filePath.startsWith('http')
+                          ? reportData.filePath
+                          : `http://localhost:9091/${reportData.filePath.replace(/^\//, '')}`
+                      }
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 rounded-xl border border-purple-200 bg-purple-50 px-3 py-1.5 text-xs font-bold text-purple-700 hover:bg-purple-100 transition-colors"
+                    >
+                      <FileText className="h-4 w-4 text-purple-600" />
+                      View Uploaded Report Document ({reportData.filePath.split('/').pop() || 'lab_report.pdf'})
+                    </a>
                   </div>
                 )}
               </div>

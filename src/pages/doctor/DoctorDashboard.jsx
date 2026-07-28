@@ -117,24 +117,28 @@ export default function DoctorDashboard() {
                 label="Specialization"
                 value={doctor.specializationName || doctor.specialization || '—'}
                 color="blue"
+                onClick={() => navigate('/doctor/profile')}
               />
               <StatsCard
                 icon={Building2}
                 label="Department"
                 value={doctor.departmentName || doctor.department || '—'}
                 color="purple"
+                onClick={() => navigate('/doctor/profile')}
               />
               <StatsCard
                 icon={BriefcaseMedical}
                 label="Experience"
                 value={doctor.experience ? `${doctor.experience} yrs` : '—'}
                 color="green"
+                onClick={() => navigate('/doctor/profile')}
               />
               <StatsCard
                 icon={DollarSign}
                 label="Consultation Fee"
                 value={doctor.consultationFee ? `₹${doctor.consultationFee}` : '—'}
                 color="amber"
+                onClick={() => navigate('/doctor/profile')}
               />
             </div>
           </div>
@@ -154,6 +158,7 @@ export default function DoctorDashboard() {
                 label="Total Patients"
                 value={stats?.totalPatients ?? 0}
                 color="green"
+                onClick={() => navigate('/doctor/appointments')}
               />
               <StatsCard
                 icon={Activity}

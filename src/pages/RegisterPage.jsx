@@ -219,7 +219,7 @@ export default function RegisterPage() {
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                 <input type={showPassword ? 'text' : 'password'} name="password" value={form.password}
                        onChange={handleChange} placeholder="Min. 6 characters"
-                       className={`w-full pl-10 pr-11 py-2.5 rounded-xl border text-sm outline-none transition
+                       className={`w-full !pl-10 !pr-11 py-2.5 rounded-xl border text-sm outline-none transition
                          ${errors.password ? 'border-red-400 focus:ring-red-200' : 'border-gray-200 focus:border-blue-500 focus:ring-blue-200'}
                          focus:ring-2`} />
                 <button type="button" tabIndex={-1}

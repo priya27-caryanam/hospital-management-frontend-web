@@ -43,32 +43,37 @@ function isTokenExpired(token) {
   return false;
 }
 
-export function AuthProvider({ children }) {
-  // Lazy state initializers for synchronous session restoration on initial render
-  const [token, setToken] = useState(() => {
-    const storedToken = localStorage.getItem('token');
-    return storedToken && !isTokenExpired(storedToken) ? storedToken : null;
-  });
+/** Helper to get stored token from tab-isolated sessionStorage or fallback localStorage */
+function getStoredToken() {
+  const token = sessionStorage.getItem('token') || localStorage.getItem('token');
+  return token && !isTokenExpired(token) ? token : null;
+}
 
-  const [user, setUser] = useState(() => {
-    const storedToken = localStorage.getItem('token');
-    const storedUser = localStorage.getItem('user');
-    if (storedToken && !isTokenExpired(storedToken) && storedUser) {
-      try {
-        return JSON.parse(storedUser);
-      } catch {
-        return null;
-      }
-    }
+/** Helper to get stored user from tab-isolated sessionStorage or fallback localStorage */
+function getStoredUser() {
+  const validToken = getStoredToken();
+  if (!validToken) return null;
+  const rawUser = sessionStorage.getItem('user') || localStorage.getItem('user');
+  if (!rawUser) return null;
+  try {
+    return JSON.parse(rawUser);
+  } catch {
     return null;
-  });
+  }
+}
 
+export function AuthProvider({ children }) {
+  // Lazy state initializers for synchronous, flash-free session restoration
+  const [token, setToken] = useState(() => getStoredToken());
+  const [user, setUser] = useState(() => getStoredUser());
   const [loading, setLoading] = useState(false);
 
-  // Clean up invalid or expired localStorage on mount
+  // Clean up invalid or expired session tokens on mount
   useEffect(() => {
-    const storedToken = localStorage.getItem('token');
-    if (storedToken && isTokenExpired(storedToken)) {
+    const currentToken = getStoredToken();
+    if (!currentToken) {
+      sessionStorage.removeItem('token');
+      sessionStorage.removeItem('user');
       localStorage.removeItem('token');
       localStorage.removeItem('user');
       setToken(null);
@@ -77,7 +82,7 @@ export function AuthProvider({ children }) {
   }, []);
 
   /**
-   * Login — calls backend login API and stores session
+   * Login — calls backend login API and stores tab-isolated session
    * @returns {string} The user's role for navigation
    */
   const login = async (email, password) => {
@@ -91,6 +96,9 @@ export function AuthProvider({ children }) {
       role: data.role,
     };
 
+    // Store in tab-isolated sessionStorage (and sync to localStorage)
+    sessionStorage.setItem('token', data.token);
+    sessionStorage.setItem('user', JSON.stringify(userData));
     localStorage.setItem('token', data.token);
     localStorage.setItem('user', JSON.stringify(userData));
 
@@ -100,8 +108,10 @@ export function AuthProvider({ children }) {
     return data.role;
   };
 
-  /** Logout — clears all auth data */
+  /** Logout — clears tab-isolated session and stored credentials */
   const logout = () => {
+    sessionStorage.removeItem('token');
+    sessionStorage.removeItem('user');
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     setToken(null);

@@ -101,6 +101,7 @@ export default function App() {
         <Route path="patients" element={<AdminPatientSearch />} />
         <Route path="appointments" element={<AdminAppointments />} />
         <Route path="billing" element={<AdminBilling />} />
+        <Route path="medicines" element={<ManageMedicines />} />
         <Route path="symptoms" element={<AdminSymptoms />} />
         <Route path="reports" element={<Reports />} />
       </Route>

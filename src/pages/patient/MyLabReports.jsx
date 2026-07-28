@@ -35,42 +35,57 @@ export default function MyLabReports() {
       if (!patientId) return;
       setLoading(true);
       try {
+        let reportsData = [];
+        try {
+          // Primary: GET /api/lab-reports/patient/{patientId}
+          const repRes = await labReportApi.getByPatient(patientId);
+          reportsData = repRes.data || [];
+        } catch (repErr) {
+          console.warn('Direct GET /api/lab-reports/patient failed, attempting fallback...', repErr);
+        }
+
+        // Secondary fallback to lab orders if direct reports endpoint is empty or pending
         const orderRes = await labOrderApi.getByPatient(patientId);
         const orders = orderRes.data || [];
 
-        // Map every lab order 1-to-1 into report entry to synchronize with dashboard total count
-        const reportList = await Promise.all(
-          orders.map(async (order) => {
-            let reportDetails = null;
-            try {
-              const repRes = await labReportApi.getByLabOrder(order.id);
-              const repData = repRes.data;
-              if (repData) {
-                if (Array.isArray(repData) && repData.length > 0) {
-                  reportDetails = repData[0];
-                } else if (repData.id || repData.report) {
-                  reportDetails = repData;
-                }
-              }
-            } catch (e) {
-              // Report not yet uploaded by lab technician
+        const reportMap = new Map();
+        // First populate from direct backend lab reports
+        if (Array.isArray(reportsData)) {
+          reportsData.forEach((r) => {
+            if (r.id || r.labOrderId) {
+              reportMap.set(r.labOrderId || r.id, {
+                id: r.id,
+                labOrderId: r.labOrderId || r.id,
+                testName: r.testName || r.labTestName || `Lab Test #${r.labTestId || '—'}`,
+                doctorName: r.doctorName,
+                doctorId: r.doctorId,
+                appointmentId: r.appointmentId,
+                report: r.report || 'Diagnostic Lab Report',
+                status: r.status || 'COMPLETED',
+                createdAt: r.createdAt || r.orderDate,
+              });
             }
+          });
+        }
 
-            return {
-              id: reportDetails?.id || order.id,
+        // Then ensure every order is represented
+        orders.forEach((order) => {
+          if (!reportMap.has(order.id)) {
+            reportMap.set(order.id, {
+              id: order.id,
               labOrderId: order.id,
-              testName: order.testName || order.labTestName || `Lab Test #${order.labTestId}`,
+              testName: order.testName || order.labTestName || `Lab Test #${order.labTestId || '—'}`,
               doctorName: order.doctorName,
               doctorId: order.doctorId,
               appointmentId: order.appointmentId,
-              report: reportDetails?.report || order.clinicalNotes || 'Diagnostic order submitted to laboratory.',
-              status: reportDetails?.status || order.status || 'ORDERED',
-              createdAt: reportDetails?.createdAt || order.orderDate || order.createdAt,
-            };
-          })
-        );
+              report: order.clinicalNotes || 'Diagnostic order submitted to laboratory.',
+              status: order.status || 'ORDERED',
+              createdAt: order.orderDate || order.createdAt,
+            });
+          }
+        });
 
-        setReports(reportList);
+        setReports(Array.from(reportMap.values()));
       } catch (err) {
         console.error('Failed to load patient lab reports:', err);
         toast.error('Failed to load lab reports');
@@ -301,6 +316,25 @@ export default function MyLabReports() {
                   {selectedReportModal.report || 'No detailed findings text uploaded yet.'}
                 </div>
               </div>
+
+              {selectedReportModal.filePath && (
+                <div className="pt-2">
+                  <span className="text-slate-400 font-medium block mb-1">Uploaded Diagnostic Document:</span>
+                  <a
+                    href={
+                      selectedReportModal.filePath.startsWith('http')
+                        ? selectedReportModal.filePath
+                        : `http://localhost:9091/${selectedReportModal.filePath.replace(/^\//, '')}`
+                    }
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-blue-200 bg-blue-50 px-3.5 py-2 text-xs font-bold text-blue-700 hover:bg-blue-100 transition-colors"
+                  >
+                    <FileText className="h-4 w-4 text-blue-600" />
+                    Open Uploaded Document ({selectedReportModal.filePath.split('/').pop() || 'lab_report.pdf'})
+                  </a>
+                </div>
+              )}
             </div>
 
             <div className="flex justify-between items-center pt-2 border-t border-slate-100">
