@@ -14,7 +14,8 @@
 import { useState, useEffect } from 'react';
 import { FileCheck, X, Send, Loader2, FileText, CheckCircle2 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import labReportApi from '../../api/labReportApi';
+import labReportApi, { downloadReportFile } from '../../api/labReportApi';
+import labOrderApi from '../../api/labOrderApi';
 import LoadingSpinner from '../common/LoadingSpinner';
 
 export default function ReviewLabReportModal({ labOrderId, isOpen, onClose, onSuccess }) {
@@ -28,7 +29,19 @@ export default function ReviewLabReportModal({ labOrderId, isOpen, onClose, onSu
     const fetchReport = async () => {
       setLoading(true);
       try {
-        const res = await labReportApi.getByLabOrder(labOrderId);
+        let res;
+        try {
+          res = await labReportApi.getByLabOrder(labOrderId);
+        } catch (err1) {
+          // Fallback: search lab order by appointment ID if labOrderId was appointment ID
+          const loRes = await labOrderApi.getByAppointment(labOrderId);
+          const loObj = Array.isArray(loRes.data) ? loRes.data[0] : loRes.data;
+          if (loObj && loObj.id) {
+            res = await labReportApi.getByLabOrder(loObj.id);
+          } else {
+            throw err1;
+          }
+        }
         setReportData(res.data);
       } catch (err) {
         console.error('Failed to load lab report:', err);
@@ -115,22 +128,17 @@ export default function ReviewLabReportModal({ labOrderId, isOpen, onClose, onSu
                 <div><span className="text-slate-400 font-medium">Report ID:</span> #{reportData.id}</div>
                 <div><span className="text-slate-400 font-medium">Order ID:</span> #{reportData.labOrderId}</div>
                 <div className="col-span-2"><span className="text-slate-400 font-medium">Uploaded Date:</span> {formatDate(reportData.createdAt)}</div>
-                {reportData.filePath && (
+                {reportData.id && (
                   <div className="col-span-2 pt-1">
                     <span className="text-slate-400 font-medium block mb-1">Uploaded Diagnostic Document:</span>
-                    <a
-                      href={
-                        reportData.filePath.startsWith('http')
-                          ? reportData.filePath
-                          : `http://localhost:9091/${reportData.filePath.replace(/^\//, '')}`
-                      }
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1.5 rounded-xl border border-purple-200 bg-purple-50 px-3 py-1.5 text-xs font-bold text-purple-700 hover:bg-purple-100 transition-colors"
+                    <button
+                      type="button"
+                      onClick={() => downloadReportFile(reportData.id)}
+                      className="inline-flex items-center gap-1.5 rounded-xl border border-purple-200 bg-purple-50 px-3 py-1.5 text-xs font-bold text-purple-700 hover:bg-purple-100 transition-colors cursor-pointer"
                     >
                       <FileText className="h-4 w-4 text-purple-600" />
-                      View Uploaded Report Document ({reportData.filePath.split('/').pop() || 'lab_report.pdf'})
-                    </a>
+                      View / Download Diagnostic Report Document (#{reportData.id})
+                    </button>
                   </div>
                 )}
               </div>

@@ -26,7 +26,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import labOrderApi from '../../api/labOrderApi';
-import labReportApi from '../../api/labReportApi';
+import labReportApi, { downloadReportFile } from '../../api/labReportApi';
 import dashboardApi from '../../api/dashboardApi';
 import DataTable from '../../components/common/DataTable';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
@@ -559,20 +559,31 @@ export default function LabReports() {
               </div>
             )}
 
-            <div className="flex justify-between items-center pt-2 border-t border-slate-100">
-              <button
-                onClick={() => {
-                  const targetOrder = viewReportOrder;
-                  setViewReportOrder(null);
-                  setUploadModalOrder(targetOrder);
-                  setReportRemarks(targetOrder.clinicalNotes || 'Diagnostic Lab Report');
-                  setUploadFile(null);
-                }}
-                className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-4 py-2 text-xs transition-colors shadow-xs cursor-pointer"
-              >
-                <Upload className="h-3.5 w-3.5" />
-                Upload / Replace PDF Report
-              </button>
+            <div className="flex justify-between items-center pt-2 border-t border-slate-100 gap-2">
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    const targetOrder = viewReportOrder;
+                    setViewReportOrder(null);
+                    setUploadModalOrder(targetOrder);
+                    setReportRemarks(targetOrder.clinicalNotes || 'Diagnostic Lab Report');
+                    setUploadFile(null);
+                  }}
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-3.5 py-2 text-xs transition-colors shadow-xs cursor-pointer"
+                >
+                  <Upload className="h-3.5 w-3.5" />
+                  Upload / Replace Report
+                </button>
+                {(viewReportData?.id || viewReportOrder?.id) && (
+                  <button
+                    onClick={() => downloadReportFile(viewReportData?.id || viewReportOrder?.id)}
+                    className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 px-3.5 py-2 text-xs font-semibold transition-colors cursor-pointer"
+                  >
+                    <FileText className="h-3.5 w-3.5" />
+                    View / Download PDF
+                  </button>
+                )}
+              </div>
               <button
                 onClick={() => setViewReportOrder(null)}
                 className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50"

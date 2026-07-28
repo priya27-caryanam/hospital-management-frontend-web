@@ -102,8 +102,13 @@ export default function MyAppointments() {
           if (apptId) {
             try {
               const loRes = await labOrderApi.getByAppointment(apptId);
-              if (loRes.data && (Array.isArray(loRes.data) ? loRes.data.length > 0 : !!loRes.data.id)) {
-                map[apptId] = true;
+              if (loRes.data) {
+                const loObj = Array.isArray(loRes.data) ? loRes.data[0] : loRes.data;
+                if (loObj && loObj.id) {
+                  map[apptId] = loObj.id;
+                } else if (loRes.data && (Array.isArray(loRes.data) ? loRes.data.length > 0 : !!loRes.data.id)) {
+                  map[apptId] = true;
+                }
               }
             } catch (e) {
               // No lab order found
@@ -333,10 +338,14 @@ export default function MyAppointments() {
                   Create Lab Test
                 </button>
               ) : (
-                <span className="inline-flex items-center gap-1.5 rounded-xl border border-indigo-200 bg-indigo-50 px-2.5 py-1.5 text-xs font-bold text-indigo-700 shadow-2xs">
-                  <FlaskConical className="h-3.5 w-3.5 text-indigo-600" />
-                  Lab Test Ordered
-                </span>
+                <button
+                  onClick={() => setReviewLabReportOrderId(typeof hasLabOrder === 'number' ? hasLabOrder : apptId)}
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 text-xs font-bold text-indigo-700 shadow-2xs transition-colors cursor-pointer"
+                  title="View & Review Uploaded Diagnostic Lab Report"
+                >
+                  <FileCheck className="h-3.5 w-3.5 text-indigo-600" />
+                  View / Review Lab Report
+                </button>
               )}
               <button
                 disabled={isProcessing}

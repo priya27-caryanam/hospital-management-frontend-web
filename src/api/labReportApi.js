@@ -4,6 +4,7 @@
  * OpenAPI Spec: LabReportController (/api/lab-reports)
  */
 import axiosInstance from './axios';
+import toast from 'react-hot-toast';
 
 const labReportApi = {
   /**
@@ -47,6 +48,43 @@ const labReportApi = {
   review: (id, reviewData) => {
     return axiosInstance.put(`/lab-reports/${id}/review`, reviewData);
   },
+
+  /** GET /api/lab-reports/{id}/download — Download/View lab report file (DOCTOR, PATIENT, LAB_TECHNICIAN) */
+  download: (id) => {
+    return axiosInstance.get(`/lab-reports/${id}/download`, {
+      responseType: 'blob',
+    });
+  },
+};
+
+/** Utility helper for downloading / viewing lab report in browser tab */
+export const downloadReportFile = async (reportId, filename = 'lab_report.pdf') => {
+  if (!reportId) {
+    toast.error('Lab report ID is missing');
+    return;
+  }
+  try {
+    const res = await labReportApi.download(reportId);
+    const contentType = res.headers['content-type'] || 'application/pdf';
+    const blob = new Blob([res.data], { type: contentType });
+    const url = window.URL.createObjectURL(blob);
+
+    // Open in new browser tab for inline viewing
+    const newTab = window.open(url, '_blank');
+    if (!newTab) {
+      // Fallback: trigger download link if popups blocked
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', filename);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    }
+    toast.success('Lab report opened successfully');
+  } catch (err) {
+    console.error('Failed to download lab report file:', err);
+    toast.error(err.response?.data?.message || 'Failed to download or view lab report file.');
+  }
 };
 
 export default labReportApi;
