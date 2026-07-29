@@ -535,7 +535,7 @@ export default function MyAppointments() {
         onClose={() => setViewPrescriptionModalId(null)}
       />
 
-import { saveAppointmentName } from '../../utils/appointmentCache';
+
 
       {/* Order Diagnostic Lab Test Modal (POST /api/lab-orders) */}
       <CreateLabOrderModal
