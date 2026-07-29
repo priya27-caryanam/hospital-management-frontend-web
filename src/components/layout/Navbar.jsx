@@ -37,10 +37,10 @@ export default function Navbar({ onMenuToggle }) {
       // Fallback silently
     }
 
-    // Combine with local notifications strictly for this user role
+    // Combine with local notifications strictly for this user role or patientId
     const localNotifs = JSON.parse(localStorage.getItem('hms_local_notifications') || '[]');
     const localUnread = localNotifs.filter(
-      (n) => !n.read && n.role === user.role
+      (n) => !(n.read ?? n.isRead) && (n.role === user.role || (user.userId && String(n.patientId) === String(user.userId)))
     ).length;
 
     setUnreadCount(remoteCount + localUnread);

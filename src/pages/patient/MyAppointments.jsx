@@ -28,7 +28,29 @@ export default function MyAppointments() {
   const fetchAppointments = async () => {
     try {
       const res = await appointmentApi.getByPatient(user.userId);
-      setAppointments(res.data || []);
+      const rawList = res.data || [];
+
+      const localEmergencies = JSON.parse(localStorage.getItem('hms_emergency_doctors') || '[]');
+      const localCancelled = JSON.parse(localStorage.getItem('hms_cancelled_emergency_appts') || '[]');
+
+      const updatedList = rawList.map((item) => {
+        const id = item.id || item.appointmentId;
+        const isDocInEmergency = localEmergencies.map((x) => String(x)).includes(String(item.doctorId));
+        const isApptCancelled = localCancelled.map((x) => String(x)).includes(String(id));
+
+        if (isDocInEmergency || isApptCancelled) {
+          if (item.status === 'PENDING' || item.status === 'APPROVED' || item.status === 'CONSULTATION_PENDING') {
+            return {
+              ...item,
+              status: 'REJECTED',
+              emergencyCancelled: true,
+            };
+          }
+        }
+        return item;
+      });
+
+      setAppointments(updatedList);
     } catch (err) {
       toast.error('Failed to load your appointments logs');
     } finally {
@@ -38,6 +60,15 @@ export default function MyAppointments() {
 
   useEffect(() => {
     fetchAppointments();
+
+    const handleRefresh = () => fetchAppointments();
+    window.addEventListener('hms_notification_trigger', handleRefresh);
+    window.addEventListener('hms_dashboard_refresh', handleRefresh);
+
+    return () => {
+      window.removeEventListener('hms_notification_trigger', handleRefresh);
+      window.removeEventListener('hms_dashboard_refresh', handleRefresh);
+    };
   }, [user]);
 
   const handleViewBill = async (appId) => {
@@ -57,6 +88,7 @@ export default function MyAppointments() {
     CONSULTATION_COMPLETED: 'bg-purple-100 text-purple-800 border-purple-200',
     COMPLETED: 'bg-emerald-100 text-emerald-800 border-emerald-200',
     REJECTED: 'bg-rose-100 text-rose-800 border-rose-200',
+    CANCELLED: 'bg-rose-100 text-rose-800 border-rose-200',
   };
 
   const columns = [
@@ -72,7 +104,7 @@ export default function MyAppointments() {
       render: (row) => (
         <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-bold uppercase ${statusColors[row.status] || 'bg-slate-100 text-slate-700'}`}>
           <span className="h-1.5 w-1.5 rounded-full bg-current" />
-          {(row.status || 'PENDING').replace('_', ' ')}
+          {row.emergencyCancelled ? 'REJECTED (EMERGENCY)' : (row.status || 'PENDING').replace('_', ' ')}
         </span>
       ),
     },

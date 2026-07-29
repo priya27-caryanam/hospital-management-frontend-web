@@ -38,6 +38,7 @@ import ViewPrescriptionModal from '../../components/common/ViewPrescriptionModal
 import ViewAppointmentDetailsModal from '../../components/common/ViewAppointmentDetailsModal';
 import CreateLabOrderModal from '../../components/doctor/CreateLabOrderModal';
 import ReviewLabReportModal from '../../components/doctor/ReviewLabReportModal';
+import { saveAppointmentName } from '../../utils/appointmentCache';
 
 const STATUS_STYLES = {
   PENDING: 'bg-amber-100 text-amber-800 border-amber-200',
@@ -534,9 +535,13 @@ export default function MyAppointments() {
         onClose={() => setViewPrescriptionModalId(null)}
       />
 
+import { saveAppointmentName } from '../../utils/appointmentCache';
+
       {/* Order Diagnostic Lab Test Modal (POST /api/lab-orders) */}
       <CreateLabOrderModal
         appointmentId={createLabOrderApptId}
+        patientName={appointments.find((a) => (a.id || a.appointmentId) === createLabOrderApptId)?.patientName}
+        doctorName={user.name ? (user.name.startsWith('Dr.') ? user.name : `Dr. ${user.name}`) : 'Doctor'}
         isOpen={Boolean(createLabOrderApptId)}
         onClose={() => setCreateLabOrderApptId(null)}
         onSuccess={() => {

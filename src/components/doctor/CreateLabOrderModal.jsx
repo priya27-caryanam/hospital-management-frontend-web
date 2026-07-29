@@ -11,7 +11,9 @@ import toast from 'react-hot-toast';
 import labOrderApi from '../../api/labOrderApi';
 import labTestApi from '../../api/labTestApi';
 
-export default function CreateLabOrderModal({ appointmentId, isOpen, onClose, onSuccess }) {
+import { saveAppointmentName } from '../../utils/appointmentCache';
+
+export default function CreateLabOrderModal({ appointmentId, patientName, doctorName, isOpen, onClose, onSuccess }) {
   const [labTestId, setLabTestId] = useState('');
   const [clinicalNotes, setClinicalNotes] = useState('');
   const [priority, setPriority] = useState('NORMAL'); // NORMAL | URGENT
@@ -63,6 +65,14 @@ export default function CreateLabOrderModal({ appointmentId, isOpen, onClose, on
 
       const res = await labOrderApi.create(payload);
       toast.success(`Lab Order #${res.data?.id || ''} created successfully!`);
+
+      // Save real patient and doctor names into cache for lab technician view
+      if (patientName || doctorName) {
+        saveAppointmentName(appointmentId, patientName, doctorName);
+        if (res.data?.id) {
+          saveAppointmentName(res.data.id, patientName, doctorName);
+        }
+      }
 
       // Trigger Notifications for LAB_TECHNICIAN and PATIENT
       const labNotif = {

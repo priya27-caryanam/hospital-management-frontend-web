@@ -35,10 +35,22 @@ export default function HospitalNotificationsModal({ isOpen, onClose, onUpdateCo
     }
 
     const localNotifs = JSON.parse(localStorage.getItem('hms_local_notifications') || '[]');
-    const userRole = JSON.parse(localStorage.getItem('hms_user') || '{}')?.role || 'RECEPTIONIST';
-    const filteredLocal = localNotifs.filter((n) => n.role === userRole);
+    const storedUser = JSON.parse(localStorage.getItem('hms_user') || '{}');
+    const userRole = storedUser?.role || 'RECEPTIONIST';
+    const userId = storedUser?.userId || storedUser?.id;
+
+    const filteredLocal = localNotifs.filter(
+      (n) => n.role === userRole || (userId && String(n.patientId) === String(userId))
+    );
 
     const merged = [...filteredLocal, ...remoteList];
+
+    // Sort chronologically descending (newest first)
+    merged.sort((a, b) => {
+      const timeA = new Date(a.createdAt || a.createdDate || a.date || 0).getTime();
+      const timeB = new Date(b.createdAt || b.createdDate || b.date || 0).getTime();
+      return timeB - timeA;
+    });
 
     setNotifications(merged);
 

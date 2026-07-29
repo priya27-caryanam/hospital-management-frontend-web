@@ -28,6 +28,9 @@ import toast from 'react-hot-toast';
 import labOrderApi from '../../api/labOrderApi';
 import labReportApi, { downloadReportFile } from '../../api/labReportApi';
 import dashboardApi from '../../api/dashboardApi';
+import appointmentApi from '../../api/appointmentApi';
+import patientApi from '../../api/patientApi';
+import doctorApi from '../../api/doctorApi';
 import DataTable from '../../components/common/DataTable';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 
@@ -37,6 +40,27 @@ const STATUS_BADGES = {
   IN_PROGRESS: 'bg-blue-100 text-blue-800 border-blue-200',
   COMPLETED: 'bg-emerald-100 text-emerald-800 border-emerald-200',
   CANCELLED: 'bg-rose-100 text-rose-800 border-rose-200',
+};
+
+/** Helper to test if a string is an actual human name and not a generic placeholder */
+const isRealName = (name) => {
+  if (!name || typeof name !== 'string') return false;
+  const trimmed = name.trim();
+  if (!trimmed) return false;
+  const lower = trimmed.toLowerCase();
+  if (
+    lower === 'patient' ||
+    lower === 'doctor' ||
+    lower === 'dr. doctor' ||
+    lower === '—' ||
+    lower.startsWith('appt #') ||
+    lower.startsWith('patient #') ||
+    lower.startsWith('doctor #') ||
+    lower.startsWith('patient (')
+  ) {
+    return false;
+  }
+  return true;
 };
 
 export default function LabReports() {
@@ -78,7 +102,7 @@ export default function LabReports() {
     }
   }, []);
 
-  /** Fetch lab orders from backend source */
+  /** Fetch lab orders from backend source & enrich patient/doctor names */
   const fetchLabOrders = useCallback(async () => {
     setLoading(true);
     try {
@@ -106,7 +130,169 @@ export default function LabReports() {
         combined.forEach((item) => uniqueMap.set(item.id, item));
         res = { data: Array.from(uniqueMap.values()) };
       }
-      setOrders(res.data || []);
+
+      const rawOrders = res.data || [];
+
+      // Fetch all patients if permitted
+      let allPatients = [];
+      try {
+        const patRes = await patientApi.search('');
+        allPatients = patRes.data || [];
+      } catch (e) {
+        console.warn('Patients list endpoint restricted for role, using fallback caches.');
+      }
+
+      const patientByIdMap = new Map();
+      allPatients.forEach((p) => {
+        if (p.id) {
+          const name =
+            p.fullName ||
+            p.name ||
+            (p.firstName || p.lastName ? `${p.firstName || ''} ${p.lastName || ''}`.trim() : '');
+          if (name) patientByIdMap.set(String(p.id), name);
+        }
+      });
+
+      const apptCache = new Map();
+      const patientCache = new Map();
+      const doctorCache = new Map();
+
+      const enrichedOrders = await Promise.all(
+        rawOrders.map(async (order) => {
+          let patientName =
+            order.patientName ||
+            order.patientFirstName ||
+            (order.patient?.firstName ? `${order.patient.firstName} ${order.patient.lastName || ''}` : '') ||
+            order.patient?.name ||
+            order.patient?.fullName ||
+            '';
+
+          let doctorName =
+            order.doctorName ||
+            order.doctorFirstName ||
+            (order.doctor?.firstName ? `${order.doctor.firstName} ${order.doctor.lastName || ''}` : '') ||
+            order.doctor?.name ||
+            '';
+
+          let patientId = order.patientId || order.patient?.id;
+          let doctorId = order.doctorId || order.doctor?.id;
+          const apptId = order.appointmentId || order.id;
+
+          // Step 1: Check localStorage for dynamically cached appointment names
+          const localApptNames = JSON.parse(localStorage.getItem('hms_appointment_names') || '{}');
+          if (apptId && localApptNames[apptId]) {
+            if (!isRealName(patientName) && localApptNames[apptId].patientName) {
+              patientName = localApptNames[apptId].patientName;
+            }
+            if (!isRealName(doctorName) && localApptNames[apptId].doctorName) {
+              doctorName = localApptNames[apptId].doctorName;
+            }
+          }
+
+          // Step 2: Query Appointment details if available & permitted
+          if (apptId && (!isRealName(patientName) || !isRealName(doctorName))) {
+            try {
+              if (!apptCache.has(apptId)) {
+                apptCache.set(
+                  apptId,
+                  appointmentApi.getById(apptId).then((r) => r.data).catch(() => null)
+                );
+              }
+              const appt = await apptCache.get(apptId);
+              if (appt) {
+                if (!isRealName(patientName)) {
+                  if (isRealName(appt.patientName)) {
+                    patientName = appt.patientName;
+                  } else if (appt.patientFirstName || appt.patientLastName) {
+                    patientName = `${appt.patientFirstName || ''} ${appt.patientLastName || ''}`.trim();
+                  }
+                }
+                if (!isRealName(doctorName)) {
+                  if (isRealName(appt.doctorName)) {
+                    doctorName = appt.doctorName;
+                  } else if (appt.doctorFirstName || appt.doctorLastName) {
+                    doctorName = `${appt.doctorFirstName || ''} ${appt.doctorLastName || ''}`.trim();
+                  }
+                }
+                if (!patientId && appt.patientId) patientId = appt.patientId;
+                if (!doctorId && appt.doctorId) doctorId = appt.doctorId;
+              }
+            } catch (err) {
+              console.warn(`Failed to fetch appointment #${apptId}:`, err);
+            }
+          }
+
+          // Step 3: Check patientByIdMap for patientId or apptId
+          if (!isRealName(patientName) && patientId && patientByIdMap.has(String(patientId))) {
+            patientName = patientByIdMap.get(String(patientId));
+          }
+          if (!isRealName(patientName) && apptId && patientByIdMap.has(String(apptId))) {
+            patientName = patientByIdMap.get(String(apptId));
+          }
+
+          // Step 4: Fetch Patient details via GET /api/patients/{id}
+          if (!isRealName(patientName) && patientId) {
+            try {
+              if (!patientCache.has(patientId)) {
+                patientCache.set(
+                  patientId,
+                  patientApi.getById(patientId).then((r) => r.data).catch(() => null)
+                );
+              }
+              const pat = await patientCache.get(patientId);
+              if (pat) {
+                const pName =
+                  pat.fullName ||
+                  pat.name ||
+                  (pat.firstName || pat.lastName ? `${pat.firstName || ''} ${pat.lastName || ''}`.trim() : '');
+                if (isRealName(pName)) patientName = pName;
+              }
+            } catch (err) {
+              console.warn(`Failed to fetch patient #${patientId}:`, err);
+            }
+          }
+
+          // Step 5: Fetch Doctor details via GET /api/doctors/{id}
+          if (!isRealName(doctorName) && doctorId) {
+            try {
+              if (!doctorCache.has(doctorId)) {
+                doctorCache.set(
+                  doctorId,
+                  doctorApi.getById(doctorId).then((r) => r.data).catch(() => null)
+                );
+              }
+              const doc = await doctorCache.get(doctorId);
+              if (doc) {
+                const dName =
+                  doc.doctorName ||
+                  doc.name ||
+                  (doc.firstName || doc.lastName ? `${doc.firstName || ''} ${doc.lastName || ''}`.trim() : '');
+                if (isRealName(dName)) doctorName = dName;
+              }
+            } catch (err) {
+              console.warn(`Failed to fetch doctor #${doctorId}:`, err);
+            }
+          }
+
+          return {
+            ...order,
+            patientName: isRealName(patientName)
+              ? patientName
+              : patientId
+              ? `Patient #${patientId}`
+              : `Patient #${apptId || order.id}`,
+            doctorName: isRealName(doctorName)
+              ? doctorName
+              : doctorId
+              ? `Dr. #${doctorId}`
+              : '—',
+            patientId,
+            doctorId,
+          };
+        })
+      );
+
+      setOrders(enrichedOrders);
       fetchStats();
     } catch (err) {
       console.error('Failed to load lab orders:', err);
@@ -216,24 +402,22 @@ export default function LabReports() {
       accessor: 'patientName',
       render: (row) => (
         <span className="font-semibold text-slate-800 text-xs">
-          {row.patientName || (row.patientId ? `Patient #${row.patientId}` : 'Patient')}
+          {row.patientName || '—'}
         </span>
       ),
     },
     {
       header: 'Doctor Name',
       accessor: 'doctorName',
-      render: (row) => (
-        <span className="font-medium text-slate-700 text-xs">
-          {row.doctorName
-            ? row.doctorName.startsWith('Dr.')
-              ? row.doctorName
-              : `Dr. ${row.doctorName}`
-            : row.doctorId
-            ? `Doctor #${row.doctorId}`
-            : 'Doctor'}
-        </span>
-      ),
+      render: (row) => {
+        const name = row.doctorName || '';
+        if (!name || name === '—') return <span className="font-medium text-slate-700 text-xs">—</span>;
+        return (
+          <span className="font-medium text-slate-700 text-xs">
+            {name.startsWith('Dr.') ? name : `Dr. ${name}`}
+          </span>
+        );
+      },
     },
     {
       header: 'Test Name',

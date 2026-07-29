@@ -16,10 +16,33 @@ import { useState, useEffect } from 'react';
 import { Pill, CheckCircle, Eye, RefreshCw, CreditCard, Receipt, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import pharmacyApi from '../../api/pharmacyApi';
+import prescriptionApi from '../../api/prescriptionApi';
+import appointmentApi from '../../api/appointmentApi';
+import patientApi from '../../api/patientApi';
+import doctorApi from '../../api/doctorApi';
 import DataTable from '../../components/common/DataTable';
 import ViewPrescriptionModal from '../../components/common/ViewPrescriptionModal';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 import { useAuth } from '../../context/AuthContext';
+
+const isRealName = (name) => {
+  if (!name || typeof name !== 'string') return false;
+  const trimmed = name.trim();
+  if (!trimmed) return false;
+  const lower = trimmed.toLowerCase();
+  if (
+    lower === 'patient' ||
+    lower === 'doctor' ||
+    lower === 'dr. doctor' ||
+    lower === '—' ||
+    lower.startsWith('appt #') ||
+    lower.startsWith('patient #') ||
+    lower.startsWith('doctor #')
+  ) {
+    return false;
+  }
+  return true;
+};
 
 export default function PendingPrescriptions() {
   const { user } = useAuth();
@@ -52,6 +75,29 @@ export default function PendingPrescriptions() {
       const pending = pendingRes.data || [];
       const allRx = allRes.data || [];
 
+      const localApptNames = JSON.parse(localStorage.getItem('hms_appointment_names') || '{}');
+
+      const enrichItem = (rx) => {
+        const id = rx.prescriptionId || rx.id;
+        const apptId = rx.appointmentId || id;
+        const cached = localApptNames[apptId] || localApptNames[id] || {};
+
+        let pName = rx.patientName || (rx.patient ? `${rx.patient.firstName || ''} ${rx.patient.lastName || ''}`.trim() : '');
+        let dName = rx.doctorName || (rx.doctor ? `${rx.doctor.firstName || ''} ${rx.doctor.lastName || ''}`.trim() : '');
+
+        if (!isRealName(pName) && cached.patientName) pName = cached.patientName;
+        if (!isRealName(dName) && cached.doctorName) dName = cached.doctorName;
+
+        return {
+          ...rx,
+          prescriptionId: id,
+          patientName: isRealName(pName) ? pName : `Patient #${rx.patientId || apptId}`,
+          doctorName: isRealName(dName) ? (dName.startsWith('Dr.') ? dName : `Dr. ${dName}`) : `Dr. #${rx.doctorId || apptId}`,
+        };
+      };
+
+      const enrichedPending = pending.map(enrichItem);
+
       // Backend dispensed or completed prescriptions
       const backendDispensed = allRx.filter((r) => r.status === 'DISPENSED' || r.status === 'COMPLETED');
       const localDispensed = JSON.parse(localStorage.getItem('hms_dispensed_prescriptions') || '[]');
@@ -61,15 +107,15 @@ export default function PendingPrescriptions() {
       [...backendDispensed, ...localDispensed].forEach((item) => {
         const id = item.prescriptionId || item.id;
         if (id && !dispensedMap.has(id)) {
+          const enriched = enrichItem(item);
           dispensedMap.set(id, {
-            ...item,
-            prescriptionId: id,
+            ...enriched,
             status: item.status || 'DISPENSED',
           });
         }
       });
 
-      setPrescriptions(pending);
+      setPrescriptions(enrichedPending);
       setDispensedList(Array.from(dispensedMap.values()));
     } catch (err) {
       console.error('Failed to load prescriptions queue:', err);
@@ -77,7 +123,6 @@ export default function PendingPrescriptions() {
     } finally {
       setLoading(false);
     }
-
   };
 
   useEffect(() => {
