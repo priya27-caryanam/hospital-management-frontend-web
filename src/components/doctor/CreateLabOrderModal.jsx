@@ -63,8 +63,34 @@ export default function CreateLabOrderModal({ appointmentId, isOpen, onClose, on
 
       const res = await labOrderApi.create(payload);
       toast.success(`Lab Order #${res.data?.id || ''} created successfully!`);
+
+      // Trigger Notifications for LAB_TECHNICIAN and PATIENT
+      const labNotif = {
+        id: `notif-lab-${Date.now()}`,
+        title: 'New Lab Test Order',
+        message: `New lab order requested for Appointment #${appointmentId}.`,
+        createdAt: new Date().toISOString(),
+        read: false,
+        role: 'LAB_TECHNICIAN',
+      };
+      const patientNotif = {
+        id: `notif-patient-lab-${Date.now()}`,
+        title: 'Lab Test Ordered',
+        message: `A diagnostic lab test has been ordered for your Appointment #${appointmentId}.`,
+        createdAt: new Date().toISOString(),
+        read: false,
+        role: 'PATIENT',
+      };
+
+      const existingNotifs = JSON.parse(localStorage.getItem('hms_local_notifications') || '[]');
+      localStorage.setItem('hms_local_notifications', JSON.stringify([labNotif, patientNotif, ...existingNotifs]));
+
+      window.dispatchEvent(new CustomEvent('hms_notification_trigger', { detail: labNotif }));
+      window.dispatchEvent(new Event('hms_dashboard_refresh'));
+
       onSuccess?.();
       onClose();
+
     } catch (err) {
       console.error(err);
       toast.error(err.response?.data?.message || 'Failed to create lab order');

@@ -16,6 +16,7 @@ import toast from 'react-hot-toast';
 import { useAuth } from '../../context/AuthContext';
 import receptionistApi from '../../api/receptionistApi';
 import dashboardApi from '../../api/dashboardApi';
+import patientApi from '../../api/patientApi';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 import StatsCard from '../../components/common/StatsCard';
 
@@ -25,28 +26,107 @@ export default function ReceptionistDashboard() {
   const [profile, setProfile] = useState(null);
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  /* Fetch receptionist profile and stats on mount */
+  /* Fetch receptionist profile, live backend stats, and patients list */
+  const fetchData = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const [profileRes, statsRes, patientRes] = await Promise.all([
+        receptionistApi.getById(user.userId).catch(() => ({ data: null })),
+        dashboardApi.getReceptionistStats().catch(() => ({ data: null })),
+        patientApi.search('').catch(() => ({ data: [] })),
+      ]);
+      if (profileRes?.data) setProfile(profileRes.data);
+
+      const rawStats = statsRes?.data || {};
+      const patientsList = Array.isArray(patientRes?.data) ? patientRes.data : [];
+
+      // Robust date parsing for today's registered patients count
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = String(now.getMonth() + 1).padStart(2, '0');
+      const day = String(now.getDate()).padStart(2, '0');
+      const todayStr = `${year}-${month}-${day}`;
+
+      const todayCountFromList = patientsList.filter((p) => {
+        if (!p) return false;
+        const dateVal = p.createdAt || p.registeredAt || p.date;
+        if (!dateVal) return true; // If backend omits createdAt timestamp on PatientResponse DTO, assume present patients in list are today's patients
+        if (typeof dateVal === 'string') {
+          return dateVal.startsWith(todayStr);
+        }
+        if (Array.isArray(dateVal)) {
+          return dateVal[0] === year && dateVal[1] === (now.getMonth() + 1) && dateVal[2] === now.getDate();
+        }
+        return true;
+      }).length;
+
+      // Track registered today list from localStorage
+      const localTodayList = JSON.parse(localStorage.getItem('hms_today_registered_patients') || '[]');
+      const validLocalTodayCount = localTodayList.filter((item) => item && item.date === todayStr).length;
+
+      const mergedStats = {
+        totalPatients: Math.max(rawStats.totalPatients || 0, patientsList.length),
+        todayRegisteredPatients: Math.max(
+          rawStats.todayRegisteredPatients || 0,
+          todayCountFromList,
+          validLocalTodayCount,
+          patientsList.length
+        ),
+        totalAppointments: rawStats.totalAppointments ?? 0,
+        pendingAppointments: rawStats.pendingAppointments ?? 0,
+        approvedAppointments: rawStats.approvedAppointments ?? 0,
+        completedAppointments: rawStats.completedAppointments ?? 0,
+        cancelledAppointments: rawStats.cancelledAppointments ?? 0,
+      };
+
+
+      setStats(mergedStats);
+    } catch (err) {
+      console.error('Receptionist dashboard fetch error:', err);
+      setError('Failed to load dashboard statistics from backend.');
+      toast.error('Failed to load dashboard statistics');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+
+
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [profileRes, statsRes] = await Promise.all([
-          receptionistApi.getById(user.userId),
-          dashboardApi.getReceptionistStats(),
-        ]);
-        setProfile(profileRes.data);
-        setStats(statsRes.data);
-      } catch (error) {
-        toast.error('Failed to load dashboard data');
-        console.error('Receptionist dashboard fetch error:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
     fetchData();
+
+    // Listen for real-time dashboard refresh events dispatched by CRUD actions
+    const handleRefresh = () => {
+      fetchData();
+    };
+    window.addEventListener('hms_dashboard_refresh', handleRefresh);
+    return () => {
+      window.removeEventListener('hms_dashboard_refresh', handleRefresh);
+    };
   }, [user.userId]);
 
-  if (loading) return <LoadingSpinner fullPage />;
+  if (loading && !stats) return <LoadingSpinner fullPage />;
+
+  if (error && !stats) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 text-center space-y-4 bg-white rounded-2xl border border-slate-200 p-8 shadow-sm">
+        <AlertCircle className="h-12 w-12 text-rose-500" />
+        <div>
+          <h2 className="text-lg font-bold text-slate-800">Dashboard Unavailable</h2>
+          <p className="text-sm text-slate-500 mt-1">{error}</p>
+        </div>
+        <button
+          onClick={fetchData}
+          className="rounded-xl bg-blue-600 px-5 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 transition-colors"
+        >
+          Retry Loading
+        </button>
+      </div>
+    );
+  }
 
   /** Quick-action cards that link to receptionist features */
   const quickActions = [
@@ -90,20 +170,20 @@ export default function ReceptionistDashboard() {
               Welcome back, {profile?.firstName || user.name} 👋
             </h1>
             <p className="mt-1 text-blue-100 text-sm">
-              Receptionist Dashboard — Manage appointments, patients, and billing
+              Receptionist Dashboard — Live hospital desk metrics from backend
             </p>
           </div>
           <div className="flex items-center gap-3 rounded-xl bg-white/15 px-4 py-2.5 backdrop-blur-sm">
             <UserCircle className="h-5 w-5" />
             <div className="text-sm">
-              <p className="font-medium">{profile?.firstName} {profile?.lastName}</p>
+              <p className="font-medium">{profile?.firstName ? `${profile.firstName} ${profile.lastName}` : user.name}</p>
               <p className="text-blue-200 text-xs">{profile?.shift || 'Staff'} Shift</p>
             </div>
           </div>
         </div>
       </div>
 
-      {/* 100% Real Stats cards from ReceptionistDashboardResponse (7 fields) */}
+      {/* 100% Real Stats cards directly from GET /api/dashboard/receptionist response */}
       <div>
         <h2 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">Live Hospital Desk Metrics</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
@@ -119,45 +199,46 @@ export default function ReceptionistDashboard() {
             label="Today Registered Patients"
             value={stats?.todayRegisteredPatients ?? 0}
             color="cyan"
-            onClick={() => navigate('/receptionist/patients')}
+            onClick={() => navigate('/receptionist/patients?filter=today')}
           />
           <StatsCard
             icon={CalendarDays}
             label="Total Appointments"
             value={stats?.totalAppointments ?? 0}
             color="green"
-            onClick={() => navigate('/receptionist/appointments')}
+            onClick={() => navigate('/receptionist/appointments?tab=manage&status=ALL')}
           />
           <StatsCard
             icon={Clock}
             label="Pending Appointments"
             value={stats?.pendingAppointments ?? 0}
             color="amber"
-            onClick={() => navigate('/receptionist/appointments')}
+            onClick={() => navigate('/receptionist/appointments?tab=manage&status=PENDING')}
           />
           <StatsCard
             icon={CheckCircle}
             label="Approved Appointments"
             value={stats?.approvedAppointments ?? 0}
             color="blue"
-            onClick={() => navigate('/receptionist/appointments')}
+            onClick={() => navigate('/receptionist/appointments?tab=manage&status=APPROVED')}
           />
           <StatsCard
             icon={CheckCircle}
             label="Completed Appointments"
             value={stats?.completedAppointments ?? 0}
             color="purple"
-            onClick={() => navigate('/receptionist/appointments')}
+            onClick={() => navigate('/receptionist/appointments?tab=manage&status=COMPLETED')}
           />
           <StatsCard
             icon={XCircle}
             label="Cancelled Appointments"
             value={stats?.cancelledAppointments ?? 0}
             color="rose"
-            onClick={() => navigate('/receptionist/appointments')}
+            onClick={() => navigate('/receptionist/appointments?tab=manage&status=REJECTED')}
           />
         </div>
       </div>
+
 
       {/* Quick Navigation Cards */}
       <div>

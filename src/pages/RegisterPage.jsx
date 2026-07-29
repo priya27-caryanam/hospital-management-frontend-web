@@ -90,14 +90,24 @@ export default function RegisterPage() {
     if (!form.dateOfBirth) errs.dateOfBirth = 'Date of birth is required';
     if (!form.bloodGroup) errs.bloodGroup = 'Blood group is required';
 
-    if (!form.address.trim()) errs.address = 'Address is required';
+    if (!form.address.trim()) {
+      errs.address = 'Address is required';
+    } else if (form.address.trim().length < 5 || form.address.trim().length > 255) {
+      errs.address = 'Address must be between 5 and 255 characters';
+    }
+
     if (!form.city.trim()) errs.city = 'City is required';
     if (!form.state.trim()) errs.state = 'State is required';
-    if (!form.pincode.trim()) errs.pincode = 'Pincode is required';
+    
+    if (!form.pincode.trim()) {
+      errs.pincode = 'Pincode is required';
+    } else if (!/^\d{6}$/.test(form.pincode.trim())) {
+      errs.pincode = 'Enter a valid 6-digit pincode';
+    }
 
     if (!form.emergencyContact.trim()) {
       errs.emergencyContact = 'Emergency contact is required';
-    } else if (!/^\d{10}$/.test(form.emergencyContact)) {
+    } else if (!/^\d{10}$/.test(form.emergencyContact.trim())) {
       errs.emergencyContact = 'Enter a valid 10-digit number';
     }
 
@@ -128,6 +138,9 @@ export default function RegisterPage() {
       console.error('Register error:', err.response?.data);
       const data = err.response?.data;
       // ApiResponse error may include validation errors map
+      if (data?.errors && typeof data.errors === 'object') {
+        setErrors((prev) => ({ ...prev, ...data.errors }));
+      }
       let message = data?.message || data?.error;
       if (!message && data?.errors && typeof data.errors === 'object') {
         message = Object.values(data.errors).join(', ');
@@ -297,10 +310,10 @@ export default function RegisterPage() {
             <div className="md:col-span-2">
               <label className="block text-sm font-medium text-gray-700 mb-1.5">Address *</label>
               <div className="relative">
-                <MapPin className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                <MapPin className="absolute left-3 top-3.5 h-4 w-4 text-gray-400 pointer-events-none z-10" />
                 <textarea name="address" value={form.address} onChange={handleChange} rows={2}
                           placeholder="Street address"
-                          className={`w-full pl-10 pr-4 py-2.5 rounded-xl border text-sm outline-none
+                          className={`w-full !pl-10 !pr-4 py-2.5 rounded-xl border text-sm outline-none
                                      focus:ring-2 transition resize-none
                                      ${errors.address ? 'border-red-400 focus:ring-red-200' : 'border-gray-200 focus:border-blue-500 focus:ring-blue-200'}`} />
               </div>

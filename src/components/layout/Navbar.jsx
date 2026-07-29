@@ -29,20 +29,42 @@ export default function Navbar({ onMenuToggle }) {
   /** Fetch unread count for logged-in user via GET /api/hospital-notifications/unread-count */
   const fetchUnreadCount = useCallback(async () => {
     if (!user) return;
+    let remoteCount = 0;
     try {
       const res = await notificationApi.getUnreadCount();
-      const count = typeof res.data === 'number' ? res.data : res.data?.unreadCount ?? 0;
-      setUnreadCount(count);
+      remoteCount = typeof res.data === 'number' ? res.data : res.data?.unreadCount ?? 0;
     } catch (err) {
-      // Fallback silently if endpoint is polling
+      // Fallback silently
     }
+
+    // Combine with local notifications strictly for this user role
+    const localNotifs = JSON.parse(localStorage.getItem('hms_local_notifications') || '[]');
+    const localUnread = localNotifs.filter(
+      (n) => !n.read && n.role === user.role
+    ).length;
+
+    setUnreadCount(remoteCount + localUnread);
   }, [user]);
+
 
   useEffect(() => {
     fetchUnreadCount();
-    const interval = setInterval(fetchUnreadCount, 30000); // Polling every 30 seconds
-    return () => clearInterval(interval);
+    const interval = setInterval(fetchUnreadCount, 15000);
+
+    const handleNotifEvent = () => {
+      fetchUnreadCount();
+    };
+
+    window.addEventListener('hms_notification_trigger', handleNotifEvent);
+    window.addEventListener('hms_dashboard_refresh', handleNotifEvent);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('hms_notification_trigger', handleNotifEvent);
+      window.removeEventListener('hms_dashboard_refresh', handleNotifEvent);
+    };
   }, [fetchUnreadCount]);
+
 
   return (
     <header className="sticky top-0 z-30 flex items-center justify-between border-b border-slate-200 bg-white/80 backdrop-blur-xl px-4 py-3 lg:px-6">

@@ -16,9 +16,9 @@ export default function ProtectedRoute({ children, allowedRoles }) {
     return <LoadingSpinner fullPage />;
   }
 
-  // Not authenticated — redirect to login
+  // Not authenticated — redirect to home page
   if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/home" replace />;
   }
 
   // Role not allowed for this route — redirect to user's own dashboard

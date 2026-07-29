@@ -5,41 +5,41 @@
  * Swagger Response Schema (UserResponse):
  *   { id, firstName, lastName, email, mobile, role, status, additionalDetails }
  */
-import { useState } from 'react';
-import { Users, Eye, X, BadgeCheck, Mail, Phone, User, ShieldCheck } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Users, Eye, X, User } from 'lucide-react';
 import toast from 'react-hot-toast';
 import patientApi from '../../api/patientApi';
 import DataTable from '../../components/common/DataTable';
 import SearchBar from '../../components/common/SearchBar';
-import EmptyState from '../../components/common/EmptyState';
 
 export default function PatientSearch() {
   const [patients, setPatients] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [hasSearched, setHasSearched] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedPatient, setSelectedPatient] = useState(null);
 
-  /** Search patients via API — returns List<UserResponse> */
-  const handleSearch = async (query) => {
-    if (!query.trim()) {
-      setPatients([]);
-      setHasSearched(false);
-      return;
-    }
-
+  /** Load all registered patients on mount or search query */
+  const fetchPatients = async (query = '') => {
     setLoading(true);
-    setHasSearched(true);
     try {
       const res = await patientApi.search(query.trim());
       setPatients(res.data || []);
       setCurrentPage(1);
     } catch (err) {
-      toast.error('Search failed');
+      toast.error('Failed to load patient records');
       console.error(err);
     } finally {
       setLoading(false);
     }
+  };
+
+  useEffect(() => {
+    fetchPatients('');
+  }, []);
+
+  /** Search handler */
+  const handleSearch = (query) => {
+    fetchPatients(query);
   };
 
   /** Table column definitions matching UserResponse */
@@ -97,10 +97,10 @@ export default function PatientSearch() {
       <div>
         <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
           <Users className="h-7 w-7 text-cyan-600" />
-          Patient Search
+          Registered Patients Directory
         </h1>
         <p className="mt-1 text-sm text-slate-500">
-          Search patient records by name, email, or mobile number
+          View all registered hospital patients or search by name, email, or mobile number
         </p>
       </div>
 
@@ -111,24 +111,16 @@ export default function PatientSearch() {
         className="max-w-lg"
       />
 
-      {/* ─── Results ─── */}
-      {hasSearched ? (
-        <DataTable
-          columns={columns}
-          data={patients}
-          loading={loading}
-          emptyMessage="No patients found matching your search"
-          pageSize={10}
-          currentPage={currentPage}
-          onPageChange={setCurrentPage}
-        />
-      ) : (
-        <EmptyState
-          icon={Users}
-          title="Search for Patients"
-          message="Enter a name, email, or mobile number above to search for patient records."
-        />
-      )}
+      {/* ─── Patients Table ─── */}
+      <DataTable
+        columns={columns}
+        data={patients}
+        loading={loading}
+        emptyMessage="No registered patients found."
+        pageSize={10}
+        currentPage={currentPage}
+        onPageChange={setCurrentPage}
+      />
 
       {/* ─── Patient Detail Card (100% UserResponse Field Mapping) ─── */}
       {selectedPatient && (

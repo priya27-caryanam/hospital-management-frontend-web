@@ -26,19 +26,25 @@ export default function HospitalNotificationsModal({ isOpen, onClose, onUpdateCo
 
   const fetchNotifications = useCallback(async () => {
     setLoading(true);
+    let remoteList = [];
     try {
       const res = await notificationApi.getMyNotifications();
-      const list = Array.isArray(res.data) ? res.data : [];
-      setNotifications(list);
-
-      const unread = list.filter((n) => !(n.read ?? n.isRead)).length;
-      if (onUpdateCount) onUpdateCount(unread);
+      remoteList = Array.isArray(res.data) ? res.data : [];
     } catch (err) {
       console.error('Failed to load notifications:', err);
-      toast.error('Unable to fetch notifications.');
-    } finally {
-      setLoading(false);
     }
+
+    const localNotifs = JSON.parse(localStorage.getItem('hms_local_notifications') || '[]');
+    const userRole = JSON.parse(localStorage.getItem('hms_user') || '{}')?.role || 'RECEPTIONIST';
+    const filteredLocal = localNotifs.filter((n) => n.role === userRole);
+
+    const merged = [...filteredLocal, ...remoteList];
+
+    setNotifications(merged);
+
+    const unread = merged.filter((n) => !(n.read ?? n.isRead)).length;
+    if (onUpdateCount) onUpdateCount(unread);
+    setLoading(false);
   }, [onUpdateCount]);
 
   /** Close modal on Escape key press */
@@ -61,13 +67,17 @@ export default function HospitalNotificationsModal({ isOpen, onClose, onUpdateCo
 
   const handleMarkAsRead = async (id) => {
     try {
-      await notificationApi.markAsRead(id);
+      if (typeof id === 'string' && id.startsWith('notif-')) {
+        const localNotifs = JSON.parse(localStorage.getItem('hms_local_notifications') || '[]');
+        const updated = localNotifs.map((n) => (n.id === id ? { ...n, read: true, isRead: true } : n));
+        localStorage.setItem('hms_local_notifications', JSON.stringify(updated));
+      } else {
+        await notificationApi.markAsRead(id);
+      }
       setNotifications((prev) =>
         prev.map((n) => (n.id === id ? { ...n, read: true, isRead: true } : n))
       );
       toast.success('Notification marked as read');
-      const unread = notifications.filter((n) => n.id !== id && !(n.read ?? n.isRead)).length;
-      if (onUpdateCount) onUpdateCount(unread);
     } catch (err) {
       console.error(err);
       toast.error('Failed to mark notification as read');
@@ -76,28 +86,35 @@ export default function HospitalNotificationsModal({ isOpen, onClose, onUpdateCo
 
   const handleMarkAllAsRead = async () => {
     try {
-      await notificationApi.markAllAsRead();
+      const localNotifs = JSON.parse(localStorage.getItem('hms_local_notifications') || '[]');
+      const updated = localNotifs.map((n) => ({ ...n, read: true, isRead: true }));
+      localStorage.setItem('hms_local_notifications', JSON.stringify(updated));
+      await notificationApi.markAllAsRead().catch(() => {});
+
       setNotifications((prev) => prev.map((n) => ({ ...n, read: true, isRead: true })));
       toast.success('All notifications marked as read');
       if (onUpdateCount) onUpdateCount(0);
     } catch (err) {
       console.error(err);
-      toast.error('Failed to mark all as read');
     }
   };
 
   const handleDelete = async (id) => {
     try {
-      await notificationApi.deleteNotification(id);
+      if (typeof id === 'string' && id.startsWith('notif-')) {
+        const localNotifs = JSON.parse(localStorage.getItem('hms_local_notifications') || '[]');
+        const updated = localNotifs.filter((n) => n.id !== id);
+        localStorage.setItem('hms_local_notifications', JSON.stringify(updated));
+      } else {
+        await notificationApi.deleteNotification(id);
+      }
       setNotifications((prev) => prev.filter((n) => n.id !== id));
       toast.success('Notification deleted');
-      const unread = notifications.filter((n) => n.id !== id && !(n.read ?? n.isRead)).length;
-      if (onUpdateCount) onUpdateCount(unread);
     } catch (err) {
       console.error(err);
-      toast.error('Failed to delete notification');
     }
   };
+
 
   if (!isOpen) return null;
 

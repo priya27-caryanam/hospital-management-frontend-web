@@ -21,16 +21,16 @@ export default function SplashScreen() {
     // Start fade-out transition after 1.5 s
     const fadeTimer = setTimeout(() => setFadeOut(true), 1500);
 
-    // Navigate after the full 2 s
+    // Navigate to Home page after the full 2 s
     const navTimer = setTimeout(() => {
-      navigate(isAuthenticated ? getDashboardPath() : '/home', { replace: true });
+      navigate('/home', { replace: true });
     }, 2000);
 
     return () => {
       clearTimeout(fadeTimer);
       clearTimeout(navTimer);
     };
-  }, [loading, isAuthenticated, getDashboardPath, navigate]);
+  }, [loading, navigate]);
 
   return (
     <div

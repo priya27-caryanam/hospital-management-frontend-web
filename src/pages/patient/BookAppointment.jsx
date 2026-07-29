@@ -445,16 +445,20 @@ export default function BookAppointment() {
                     const spec = doc.specializationName || doc.specialization || '';
                     const specText = spec ? ` - ${spec}` : '';
                     
-                    let availBadge = '🟢 Available';
-                    if (status === 'UNAVAILABLE') availBadge = '🔴 Not Available';
-                    else if (status === 'LEAVE') availBadge = '🟡 On Leave';
-                    else if (status === 'EMERGENCY') availBadge = '🔴 Emergency';
+                    let availBadge = '';
+                    if (selectedDate) {
+                      if (status === 'AVAILABLE') availBadge = ' (🟢 Available)';
+                      else if (status === 'UNAVAILABLE') availBadge = ' (🔴 Not Available)';
+                      else if (status === 'LEAVE') availBadge = ' (🟡 On Leave)';
+                      else if (status === 'EMERGENCY') availBadge = ' (🔴 Emergency)';
+                    }
 
                     return (
                       <option key={doc.id} value={doc.id}>
-                        Dr. {doc.firstName} {doc.lastName}{specText} ({availBadge})
+                        Dr. {doc.firstName} {doc.lastName}{specText}{availBadge}
                       </option>
                     );
+
                   })}
                 </select>
 

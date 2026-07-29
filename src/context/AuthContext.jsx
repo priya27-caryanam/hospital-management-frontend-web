@@ -108,14 +108,17 @@ export function AuthProvider({ children }) {
     return data.role;
   };
 
-  /** Logout — clears tab-isolated session and stored credentials */
+  /** Logout — completely clears all authentication data and tab sessions */
   const logout = () => {
-    sessionStorage.removeItem('token');
-    sessionStorage.removeItem('user');
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
+    try {
+      sessionStorage.clear();
+      localStorage.clear();
+    } catch (e) {
+      console.error('Error clearing storage on logout:', e);
+    }
     setToken(null);
     setUser(null);
+    window.location.href = '/home';
   };
 
   /** Get the role-based dashboard path */

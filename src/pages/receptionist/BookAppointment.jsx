@@ -5,7 +5,8 @@
  *  2. Manage Appointments (View, Approve, Reject, Filter)
  */
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+
 import toast from 'react-hot-toast';
 import {
   Calendar,
@@ -45,9 +46,20 @@ const STATUS_STYLES = {
 
 export default function BookAppointment() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
   // Page Mode: 'book' | 'manage'
   const [activePageMode, setActivePageMode] = useState('book');
+
+  // Sync mode with URL params
+  useEffect(() => {
+    const mode = searchParams.get('mode');
+    if (mode === 'manage') {
+      setActivePageMode('manage');
+    } else {
+      setActivePageMode('book');
+    }
+  }, [searchParams]);
 
   // ==================== BOOKING STEPPER STATE ====================
   const [step, setStep] = useState(1);
@@ -147,6 +159,19 @@ export default function BookAppointment() {
   const [loadingManageApps, setLoadingManageApps] = useState(false);
   const [actionLoadingId, setActionLoadingId] = useState(null);
   const [statusFilter, setStatusFilter] = useState('ALL'); // 'ALL' | 'PENDING' | 'APPROVED' | 'COMPLETED' | 'REJECTED'
+
+  // Sync activePageMode and statusFilter with URL search parameters
+  useEffect(() => {
+    const tabParam = searchParams.get('tab');
+    const statusParam = searchParams.get('status');
+    if (tabParam === 'manage' || statusParam) {
+      setActivePageMode('manage');
+    }
+    if (statusParam) {
+      setStatusFilter(statusParam.toUpperCase());
+    }
+  }, [searchParams]);
+
   const [manageSearchText, setManageSearchText] = useState('');
   const [allDoctorsList, setAllDoctorsList] = useState([]);
   const [filterDocId, setFilterDocId] = useState('');

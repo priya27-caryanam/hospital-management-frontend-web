@@ -134,8 +134,25 @@ export default function MyAppointments() {
     setActionLoadingId(id);
     try {
       await appointmentApi.approve(id);
+      const appt = appointments.find((a) => a.id === id);
+      const patientName = appt ? `${appt.patientName || appt.patientFirstName || ''}`.trim() : '';
       toast.success(`Appointment #${id} approved successfully`);
       fetchAppointments();
+
+      // Trigger Receptionist Notification & Dashboard Refresh
+      const notif = {
+        id: `notif-${Date.now()}`,
+        title: 'Appointment Approved',
+        message: `Appointment #${id} ${patientName ? `(${patientName})` : ''} has been APPROVED by Dr. ${user.name || 'Doctor'}.`,
+        createdAt: new Date().toISOString(),
+        read: false,
+        role: 'RECEPTIONIST',
+      };
+      const existingNotifs = JSON.parse(localStorage.getItem('hms_local_notifications') || '[]');
+      localStorage.setItem('hms_local_notifications', JSON.stringify([notif, ...existingNotifs]));
+
+      window.dispatchEvent(new CustomEvent('hms_notification_trigger', { detail: notif }));
+      window.dispatchEvent(new Event('hms_dashboard_refresh'));
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to approve appointment');
     } finally {
@@ -147,14 +164,31 @@ export default function MyAppointments() {
     setActionLoadingId(id);
     try {
       await appointmentApi.reject(id);
+      const appt = appointments.find((a) => a.id === id);
+      const patientName = appt ? `${appt.patientName || appt.patientFirstName || ''}`.trim() : '';
       toast.success(`Appointment #${id} rejected`);
       fetchAppointments();
+
+      const notif = {
+        id: `notif-${Date.now()}`,
+        title: 'Appointment Rejected',
+        message: `Appointment #${id} ${patientName ? `(${patientName})` : ''} has been REJECTED by Dr. ${user.name || 'Doctor'}.`,
+        createdAt: new Date().toISOString(),
+        read: false,
+        role: 'RECEPTIONIST',
+      };
+      const existingNotifs = JSON.parse(localStorage.getItem('hms_local_notifications') || '[]');
+      localStorage.setItem('hms_local_notifications', JSON.stringify([notif, ...existingNotifs]));
+
+      window.dispatchEvent(new CustomEvent('hms_notification_trigger', { detail: notif }));
+      window.dispatchEvent(new Event('hms_dashboard_refresh'));
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to reject appointment');
     } finally {
       setActionLoadingId(null);
     }
   };
+
 
   const handleMarkConsultationCompleted = async (id) => {
     setActionLoadingId(id);

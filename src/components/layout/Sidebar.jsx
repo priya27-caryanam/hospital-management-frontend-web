@@ -84,12 +84,12 @@ export default function Sidebar({ isOpen, onClose }) {
 
       {/* Sidebar */}
       <aside
-        className={`fixed top-0 left-0 z-50 h-full w-64 transform bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900 transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:z-auto ${
+        className={`fixed top-0 left-0 z-50 h-screen flex flex-col w-64 transform bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900 transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:z-auto ${
           isOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-5 border-b border-slate-700/50">
+        <div className="flex items-center justify-between px-5 py-5 border-b border-slate-700/50 shrink-0">
           <div className="flex items-center gap-3">
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-600 shadow-lg shadow-blue-600/30">
               <Activity className="h-5 w-5 text-white" />
@@ -105,7 +105,7 @@ export default function Sidebar({ isOpen, onClose }) {
         </div>
 
         {/* Navigation Links */}
-        <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-1">
+        <nav className="flex-1 min-h-0 overflow-y-auto px-3 py-4 space-y-1">
           {navItems.map((item) => (
             <NavLink
               key={item.path}
@@ -126,7 +126,7 @@ export default function Sidebar({ isOpen, onClose }) {
         </nav>
 
         {/* Logout Button */}
-        <div className="border-t border-slate-700/50 p-3">
+        <div className="border-t border-slate-700/50 p-3 shrink-0">
           <button
             onClick={() => { logout(); onClose?.(); }}
             className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-red-400 hover:bg-red-500/10 hover:text-red-300 transition-all duration-200"

@@ -15,7 +15,7 @@
  *   { id, firstName, lastName, email, mobile, gender, qualification, experience, certificateNumber, shift, status, createdAt, updatedAt }
  */
 import { useState, useEffect, useMemo } from 'react';
-import { TestTube, Plus, Pencil, Trash2, Eye, X, Mail, Phone, Award, ShieldCheck, User } from 'lucide-react';
+import { TestTube, Plus, Pencil, Trash2, Eye, EyeOff, X, Mail, Phone, Award, ShieldCheck, User } from 'lucide-react';
 import toast from 'react-hot-toast';
 import labTechnicianApi from '../../api/labTechnicianApi';
 import DataTable from '../../components/common/DataTable';
@@ -45,11 +45,13 @@ export default function RegisterLabTechnician() {
   // Form Modal state (Create / Edit)
   const [showModal, setShowModal] = useState(false);
   const [formData, setFormData] = useState(EMPTY_FORM);
+  const [errors, setErrors] = useState({});
   const [editingId, setEditingId] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   // View Details Modal state (GET /api/lab-technicians/{id})
-  const [viewingTech, setViewingTech] = useState(null);
+  const [viewingTechnician, setViewingTechnician] = useState(null);
   const [loadingDetails, setLoadingDetails] = useState(false);
 
   // Delete confirmation
@@ -62,7 +64,7 @@ export default function RegisterLabTechnician() {
       const res = await labTechnicianApi.getAll();
       setTechnicians(res.data || []);
     } catch (err) {
-      toast.error('Failed to load lab technicians');
+      toast.error('Failed to load lab technicians directory');
       console.error(err);
     } finally {
       setLoading(false);
@@ -83,8 +85,8 @@ export default function RegisterLabTechnician() {
         t.lastName?.toLowerCase().includes(q) ||
         t.email?.toLowerCase().includes(q) ||
         t.mobile?.includes(q) ||
-        t.certificateNumber?.toLowerCase().includes(q) ||
         t.qualification?.toLowerCase().includes(q) ||
+        t.certificateNumber?.toLowerCase().includes(q) ||
         t.shift?.toLowerCase().includes(q)
     );
   }, [technicians, searchQuery]);
@@ -92,6 +94,7 @@ export default function RegisterLabTechnician() {
   /** Open Create Modal */
   const openCreateModal = () => {
     setFormData(EMPTY_FORM);
+    setErrors({});
     setEditingId(null);
     setShowModal(true);
   };
@@ -104,12 +107,13 @@ export default function RegisterLabTechnician() {
       email: t.email || '',
       mobile: t.mobile || '',
       password: '',
-      gender: t.gender || 'MALE',
+      gender: t.gender || '',
       qualification: t.qualification || '',
       experience: String(t.experience ?? 0),
       certificateNumber: t.certificateNumber || '',
       shift: t.shift || 'MORNING',
     });
+    setErrors({});
     setEditingId(t.id);
     setShowModal(true);
   };
@@ -117,12 +121,12 @@ export default function RegisterLabTechnician() {
   /** View Details via GET /api/lab-technicians/{id} */
   const handleViewDetails = async (id) => {
     setLoadingDetails(true);
-    setViewingTech(null);
+    setViewingTechnician(null);
     try {
       const res = await labTechnicianApi.getById(id);
-      setViewingTech(res.data);
+      setViewingTechnician(res.data);
     } catch (err) {
-      toast.error('Failed to fetch lab technician details');
+      toast.error('Failed to fetch lab technician profile details');
       console.error(err);
     } finally {
       setLoadingDetails(false);
@@ -133,20 +137,55 @@ export default function RegisterLabTechnician() {
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
+    if (errors[name]) {
+      setErrors((prev) => ({ ...prev, [name]: '' }));
+    }
+  };
+
+  /** Field-level Form Validation */
+  const validateForm = () => {
+    const errs = {};
+    if (!formData.firstName.trim()) errs.firstName = 'First Name is required';
+    if (!formData.lastName.trim()) errs.lastName = 'Last Name is required';
+
+    if (!formData.email.trim()) {
+      errs.email = 'Email is required';
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email.trim())) {
+      errs.email = 'Enter a valid email address';
+    }
+
+    if (!formData.mobile.trim()) {
+      errs.mobile = 'Mobile number is required';
+    } else if (!/^[6-9]\d{9}$/.test(formData.mobile.trim())) {
+      errs.mobile = 'Enter a valid 10-digit mobile number starting with 6-9';
+    }
+
+    const passRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&#])[A-Za-z\d@$!%*?&#]{8,20}$/;
+    if (!editingId) {
+      if (!formData.password) {
+        errs.password = 'Password is required';
+      } else if (!passRegex.test(formData.password)) {
+        errs.password = '8-20 characters with uppercase, lowercase, number and special character (@$!%*?&#)';
+      }
+    } else if (formData.password) {
+      if (!passRegex.test(formData.password)) {
+        errs.password = '8-20 characters with uppercase, lowercase, number and special character (@$!%*?&#)';
+      }
+    }
+
+    if (!formData.gender) errs.gender = 'Gender is required';
+    if (!formData.qualification.trim()) errs.qualification = 'Qualification is required';
+    if (formData.experience === '' || formData.experience === null || formData.experience === undefined) errs.experience = 'Experience is required';
+    if (!formData.certificateNumber.trim()) errs.certificateNumber = 'Certificate Number is required';
+
+    setErrors(errs);
+    return Object.keys(errs).length === 0;
   };
 
   /** Submit Create or Update */
   const handleSubmit = async (e) => {
     e.preventDefault();
-
-    if (!formData.firstName || !formData.lastName || !formData.email || !formData.certificateNumber) {
-      toast.error('Please fill in all required fields');
-      return;
-    }
-    if (!editingId && !formData.password) {
-      toast.error('Password is required for new registration');
-      return;
-    }
+    if (!validateForm()) return;
 
     setSubmitting(true);
     try {
@@ -156,7 +195,7 @@ export default function RegisterLabTechnician() {
         email: formData.email.trim(),
         mobile: formData.mobile.trim(),
         password: formData.password || undefined,
-        gender: formData.gender || 'MALE',
+        gender: formData.gender,
         qualification: formData.qualification.trim(),
         experience: formData.experience ? Number(formData.experience) : 0,
         certificateNumber: formData.certificateNumber.trim(),
@@ -172,9 +211,14 @@ export default function RegisterLabTechnician() {
       }
 
       setShowModal(false);
+      setErrors({});
       fetchTechnicians();
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Operation failed');
+      const errData = err.response?.data;
+      if (errData?.errors && typeof errData.errors === 'object') {
+        setErrors((prev) => ({ ...prev, ...errData.errors }));
+      }
+      toast.error(errData?.message || 'Operation failed');
       console.error(err);
     } finally {
       setSubmitting(false);
@@ -200,10 +244,15 @@ export default function RegisterLabTechnician() {
     return new Date(dateStr).toLocaleString('en-IN');
   };
 
-  const inputClass =
-    'w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-100 transition-all';
+  const getInputClass = (field) =>
+    `w-full rounded-xl border ${
+      errors[field] ? 'border-red-400 focus:ring-red-200' : 'border-slate-200 focus:border-indigo-500 focus:ring-indigo-100'
+    } px-4 py-2.5 text-sm focus:outline-none focus:ring-2 transition-all bg-white`;
 
-  /** Columns displaying all 13 LabTechnicianResponse fields */
+  const ErrorMsg = ({ field }) =>
+    errors[field] ? <p className="mt-1 text-xs text-red-500 font-medium">{errors[field]}</p> : null;
+
+  /** Columns displaying all 14 LabTechnicianResponse fields */
   const columns = [
     { header: 'ID', accessor: 'id' },
     {
@@ -225,7 +274,7 @@ export default function RegisterLabTechnician() {
     {
       header: 'Certificate #',
       render: (row) => (
-        <span className="font-semibold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100 text-xs">
+        <span className="font-mono text-xs text-slate-600 bg-slate-100 px-2 py-0.5 rounded">
           {row.certificateNumber || '—'}
         </span>
       ),
@@ -246,31 +295,27 @@ export default function RegisterLabTechnician() {
       ),
     },
     {
-      header: 'Created At',
-      render: (row) => formatDate(row.createdAt),
-    },
-    {
       header: 'Actions',
       render: (row) => (
         <div className="flex items-center gap-1.5">
           <button
             onClick={() => handleViewDetails(row.id)}
             className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-blue-600 transition-colors"
-            title="View Details"
+            title="View Profile Details"
           >
             <Eye className="h-4 w-4" />
           </button>
           <button
             onClick={() => openEditModal(row)}
             className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-indigo-600 transition-colors"
-            title="Edit Technician"
+            title="Edit Lab Technician"
           >
             <Pencil className="h-4 w-4" />
           </button>
           <button
             onClick={() => setDeleteTarget(row)}
             className="rounded-lg p-1.5 text-slate-500 hover:bg-red-50 hover:text-red-600 transition-colors"
-            title="Delete Technician"
+            title="Delete Lab Technician"
           >
             <Trash2 className="h-4 w-4" />
           </button>
@@ -289,7 +334,7 @@ export default function RegisterLabTechnician() {
             Lab Technicians Management
           </h1>
           <p className="mt-1 text-sm text-slate-500">
-            Register and manage hospital laboratory technicians
+            Register new laboratory technicians and manage certified lab staff
           </p>
         </div>
         <button
@@ -297,13 +342,13 @@ export default function RegisterLabTechnician() {
           className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-indigo-700"
         >
           <Plus className="h-4 w-4" />
-          Add Lab Technician
+          Add Lab Tech
         </button>
       </div>
 
       {/* ─── Search ─── */}
       <SearchBar
-        placeholder="Search technicians by name, email, mobile, qualification, certificate #, or shift..."
+        placeholder="Search technicians by name, email, mobile, qualification, certificate, or shift..."
         onSearch={(val) => {
           setSearchQuery(val);
           setCurrentPage(1);
@@ -323,16 +368,16 @@ export default function RegisterLabTechnician() {
       />
 
       {/* ─── View Details Modal (GET /api/lab-technicians/{id}) ─── */}
-      {(viewingTech || loadingDetails) && (
+      {(viewingTechnician || loadingDetails) && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm px-4">
           <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl space-y-5 animate-fade-in">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
                 <TestTube className="h-5 w-5 text-indigo-600" />
-                Lab Technician Details
+                Lab Technician Profile Details
               </h3>
               <button
-                onClick={() => setViewingTech(null)}
+                onClick={() => setViewingTechnician(null)}
                 className="rounded-full p-1 hover:bg-slate-100 text-slate-500 transition-colors"
               >
                 <X className="h-4 w-4" />
@@ -341,23 +386,21 @@ export default function RegisterLabTechnician() {
 
             {loadingDetails ? (
               <LoadingSpinner />
-            ) : viewingTech ? (
+            ) : viewingTechnician ? (
               <div className="space-y-4">
                 <div className="rounded-xl border border-slate-100 bg-slate-50 p-4 divide-y divide-slate-100 text-sm">
                   {[
-                    ['Technician ID', `#${viewingTech.id}`],
-                    ['First Name', viewingTech.firstName],
-                    ['Last Name', viewingTech.lastName],
-                    ['Email Address', viewingTech.email],
-                    ['Mobile Number', viewingTech.mobile],
-                    ['Gender', viewingTech.gender],
-                    ['Qualification', viewingTech.qualification || '—'],
-                    ['Experience', `${viewingTech.experience ?? 0} Years`],
-                    ['Certificate Number', viewingTech.certificateNumber || '—'],
-                    ['Shift', viewingTech.shift || 'MORNING'],
-                    ['Status', viewingTech.status || 'ACTIVE'],
-                    ['Created At', formatDate(viewingTech.createdAt)],
-                    ['Last Updated At', formatDate(viewingTech.updatedAt)],
+                    ['Technician ID', `#${viewingTechnician.id}`],
+                    ['First Name', viewingTechnician.firstName],
+                    ['Last Name', viewingTechnician.lastName],
+                    ['Email Address', viewingTechnician.email],
+                    ['Mobile Number', viewingTechnician.mobile],
+                    ['Gender', viewingTechnician.gender],
+                    ['Qualification', viewingTechnician.qualification || '—'],
+                    ['Experience', `${viewingTechnician.experience ?? 0} Years`],
+                    ['Certificate Number', viewingTechnician.certificateNumber || '—'],
+                    ['Shift', viewingTechnician.shift || 'MORNING'],
+                    ['Status', viewingTechnician.status || 'ACTIVE'],
                   ].map(([label, val]) => (
                     <div key={label} className="flex justify-between py-2.5 first:pt-0 last:pb-0">
                       <span className="text-slate-500 font-medium text-xs">{label}</span>
@@ -367,7 +410,7 @@ export default function RegisterLabTechnician() {
                 </div>
 
                 <button
-                  onClick={() => setViewingTech(null)}
+                  onClick={() => setViewingTechnician(null)}
                   className="w-full rounded-xl bg-slate-800 text-white font-semibold py-2.5 text-sm hover:bg-slate-900 transition-colors"
                 >
                   Close
@@ -391,58 +434,86 @@ export default function RegisterLabTechnician() {
               </button>
             </div>
 
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleSubmit} className="space-y-4" noValidate>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">First Name *</label>
-                  <input type="text" name="firstName" value={formData.firstName} onChange={handleChange} required className={inputClass} placeholder="Alice" />
+                  <input type="text" name="firstName" value={formData.firstName} onChange={handleChange} className={getInputClass('firstName')} placeholder="Alice" />
+                  <ErrorMsg field="firstName" />
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Last Name *</label>
-                  <input type="text" name="lastName" value={formData.lastName} onChange={handleChange} required className={inputClass} placeholder="Williams" />
+                  <input type="text" name="lastName" value={formData.lastName} onChange={handleChange} className={getInputClass('lastName')} placeholder="Williams" />
+                  <ErrorMsg field="lastName" />
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Email *</label>
-                  <input type="email" name="email" value={formData.email} onChange={handleChange} required className={inputClass} placeholder="labtech@hospital.com" />
+                  <input type="email" name="email" value={formData.email} onChange={handleChange} className={getInputClass('email')} placeholder="labtech@hospital.com" />
+                  <ErrorMsg field="email" />
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Mobile *</label>
-                  <input type="tel" name="mobile" value={formData.mobile} onChange={handleChange} required className={inputClass} placeholder="9876543210" />
+                  <input type="tel" name="mobile" value={formData.mobile} onChange={handleChange} className={getInputClass('mobile')} placeholder="9876543210" />
+                  <ErrorMsg field="mobile" />
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">
                     Password {editingId ? '(Leave blank to keep unchanged)' : '*'}
                   </label>
-                  <input type="password" name="password" value={formData.password} onChange={handleChange} required={!editingId} className={inputClass} placeholder="••••••••" autoComplete="new-password" />
+                  <div className="relative">
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      name="password"
+                      value={formData.password}
+                      onChange={handleChange}
+                      className={`${getInputClass('password')} !pr-10`}
+                      placeholder="••••••••"
+                      autoComplete="new-password"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword((prev) => !prev)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                      tabIndex={-1}
+                    >
+                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+                  <ErrorMsg field="password" />
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Gender *</label>
-                  <select name="gender" value={formData.gender} onChange={handleChange} required className={inputClass}>
-                    <option value="">Select Gender</option>
+                  <select name="gender" value={formData.gender} onChange={handleChange} className={getInputClass('gender')}>
+                    <option value="">-- Select Gender --</option>
                     <option value="MALE">Male</option>
                     <option value="FEMALE">Female</option>
                     <option value="OTHER">Other</option>
                   </select>
+                  <ErrorMsg field="gender" />
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Qualification *</label>
-                  <input type="text" name="qualification" value={formData.qualification} onChange={handleChange} required className={inputClass} placeholder="BSc MLT" />
+                  <input type="text" name="qualification" value={formData.qualification} onChange={handleChange} className={getInputClass('qualification')} placeholder="BSc MLT" />
+                  <ErrorMsg field="qualification" />
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Experience (Years) *</label>
-                  <input type="number" min="0" name="experience" value={formData.experience} onChange={handleChange} required className={inputClass} placeholder="3" />
+                  <input type="number" min="0" name="experience" value={formData.experience} onChange={handleChange} className={getInputClass('experience')} placeholder="3" />
+                  <ErrorMsg field="experience" />
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Certificate Number *</label>
-                  <input type="text" name="certificateNumber" value={formData.certificateNumber} onChange={handleChange} required className={inputClass} placeholder="CERT-4321" />
+                  <input type="text" name="certificateNumber" value={formData.certificateNumber} onChange={handleChange} className={getInputClass('certificateNumber')} placeholder="CERT-4321" />
+                  <ErrorMsg field="certificateNumber" />
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 uppercase mb-1">Shift *</label>
-                  <select name="shift" value={formData.shift} onChange={handleChange} required className={inputClass}>
+                  <select name="shift" value={formData.shift} onChange={handleChange} className={getInputClass('shift')}>
                     <option value="MORNING">Morning</option>
                     <option value="EVENING">Evening</option>
                     <option value="NIGHT">Night</option>
                   </select>
+                  <ErrorMsg field="shift" />
                 </div>
               </div>
 

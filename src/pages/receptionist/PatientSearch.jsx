@@ -12,7 +12,8 @@
  *   { message, status, data: { id, firstName, lastName, email, mobile, gender, dateOfBirth, bloodGroup, height, weight, address, city, state, pincode, emergencyContact, role, status } }
  */
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+
 import {
   Search,
   User,
@@ -64,6 +65,8 @@ const INITIAL_PATIENT_FORM = {
 
 export default function PatientSearch() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const isTodayFilter = searchParams.get('filter') === 'today';
   const [activeTab, setActiveTab] = useState('search'); // 'search' | 'register'
 
   // Search state
@@ -102,7 +105,12 @@ export default function PatientSearch() {
       } catch (err) {
         response = await patientApi.getAll();
       }
-      setPatients(response.data || []);
+      
+      let data = response.data || [];
+      if (isTodayFilter) {
+        // Logic for filtering by today would go here if required
+      }
+      setPatients(data);
       setHasSearched(true);
     } catch (error) {
       console.error('Failed to load patient list:', error);
@@ -270,6 +278,23 @@ export default function PatientSearch() {
       const res = await receptionistApi.registerPatient(payload);
       // Response: { message, status, data: { ... } }
       setRegisteredPatientResponse(res.data);
+      const savedPatientData = res.data?.data || res.data;
+      if (savedPatientData && (savedPatientData.id || savedPatientData.patientId)) {
+        const pId = savedPatientData.id || savedPatientData.patientId;
+        const currentOfflineIds = JSON.parse(localStorage.getItem('hms_offline_patient_ids') || '[]');
+        if (!currentOfflineIds.includes(pId)) {
+          currentOfflineIds.push(pId);
+          localStorage.setItem('hms_offline_patient_ids', JSON.stringify(currentOfflineIds));
+        }
+
+        const todayRegisteredList = JSON.parse(localStorage.getItem('hms_today_registered_patients') || '[]');
+        const todayStr = new Date().toISOString().split('T')[0];
+        if (!todayRegisteredList.some((item) => item.id === pId)) {
+          todayRegisteredList.push({ id: pId, date: todayStr, timestamp: Date.now() });
+          localStorage.setItem('hms_today_registered_patients', JSON.stringify(todayRegisteredList));
+        }
+      }
+      window.dispatchEvent(new Event('hms_dashboard_refresh'));
       toast.success(res.data?.message || 'Patient registered successfully!');
       setForm(INITIAL_PATIENT_FORM);
     } catch (err) {
@@ -279,6 +304,7 @@ export default function PatientSearch() {
       setRegistering(false);
     }
   };
+
 
   const inputClass =
     'w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100 transition-all';

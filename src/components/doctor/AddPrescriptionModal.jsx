@@ -130,6 +130,31 @@ export default function AddPrescriptionModal({ appointmentId, isOpen, onClose, o
       }
 
       toast.success('Prescription created successfully!');
+
+      // Send notification to PHARMACIST and PATIENT
+      const pharmaNotif = {
+        id: `notif-pharma-${Date.now()}`,
+        title: 'New Prescription Added',
+        message: `New prescription added for Appointment #${appointmentId}. Please review and prepare medications.`,
+        createdAt: new Date().toISOString(),
+        read: false,
+        role: 'PHARMACIST',
+      };
+      const patientNotif = {
+        id: `notif-patient-${Date.now()}`,
+        title: 'Prescription Ready',
+        message: `Doctor has issued a new prescription for your Appointment #${appointmentId}.`,
+        createdAt: new Date().toISOString(),
+        read: false,
+        role: 'PATIENT',
+      };
+
+      const existingNotifs = JSON.parse(localStorage.getItem('hms_local_notifications') || '[]');
+      localStorage.setItem('hms_local_notifications', JSON.stringify([pharmaNotif, patientNotif, ...existingNotifs]));
+
+      window.dispatchEvent(new CustomEvent('hms_notification_trigger', { detail: pharmaNotif }));
+      window.dispatchEvent(new Event('hms_dashboard_refresh'));
+
       onSuccess?.();
       onClose();
     } catch (err) {
@@ -138,6 +163,7 @@ export default function AddPrescriptionModal({ appointmentId, isOpen, onClose, o
     } finally {
       setSubmitting(false);
     }
+
   };
 
   const inputClass =
@@ -281,79 +307,7 @@ export default function AddPrescriptionModal({ appointmentId, isOpen, onClose, o
             />
           </div>
 
-          {/* 🔬 Optional Diagnostic Lab Test Section */}
-          <div className="rounded-2xl border border-indigo-100 bg-indigo-50/40 p-4 space-y-3">
-            <div className="flex items-center justify-between">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={orderLabTest}
-                  onChange={(e) => setOrderLabTest(e.target.checked)}
-                  className="h-4 w-4 rounded border-indigo-300 text-indigo-600 focus:ring-indigo-500"
-                />
-                <span className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-indigo-900">
-                  <FlaskConical className="h-4 w-4 text-indigo-600" />
-                  Order Diagnostic Lab Test with Prescription
-                </span>
-              </label>
-              {orderLabTest && (
-                <span className="text-[10px] font-semibold bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full">
-                  Lab Test Included
-                </span>
-              )}
-            </div>
 
-            {orderLabTest && (
-              <div className="space-y-3 pt-2 border-t border-indigo-100/80 animate-fade-in">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Select Diagnostic Test <span className="text-rose-500">*</span>
-                  </label>
-                  {availableLabTests.length === 0 ? (
-                    <p className="text-xs text-amber-700 font-medium">No lab tests found in catalog.</p>
-                  ) : (
-                    <select
-                      value={selectedLabTestId}
-                      onChange={(e) => setSelectedLabTestId(e.target.value)}
-                      required={orderLabTest}
-                      className={inputClass}
-                    >
-                      <option value="">-- Choose Diagnostic Test --</option>
-                      {availableLabTests.map((t) => (
-                        <option key={t.id} value={t.id}>
-                          {t.testName} {t.category ? `(${t.category})` : ''} — ₹{t.price}
-                        </option>
-                      ))}
-                    </select>
-                  )}
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">Priority</label>
-                    <select
-                      value={labPriority}
-                      onChange={(e) => setLabPriority(e.target.value)}
-                      className={inputClass}
-                    >
-                      <option value="NORMAL">NORMAL</option>
-                      <option value="URGENT">URGENT</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">Lab Instructions</label>
-                    <input
-                      type="text"
-                      placeholder="e.g. Fasting required"
-                      value={labInstructions}
-                      onChange={(e) => setLabInstructions(e.target.value)}
-                      className={inputClass}
-                    />
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
 
           <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">
             <button

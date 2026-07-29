@@ -62,12 +62,36 @@ const billingApi = {
 
   /**
    * GET /api/pharmacy/receipt/{prescriptionId}
-   * Fetch pharmacy payment receipt for a given prescription (PHARMACIST)
+   * Fetch pharmacy payment receipt for a given prescription (PHARMACIST/PATIENT)
    * @param {number} prescriptionId
    * @returns {ReceiptResponse}
    */
   pharmacyReceipt: (prescriptionId) => {
     return axiosInstance.get(`/pharmacy/receipt/${prescriptionId}`);
+  },
+
+  /**
+   * POST /api/lab-technicians/payment/{labOrderId}
+   * Process laboratory payment for a given lab order (LAB_TECHNICIAN)
+   * @param {number} labOrderId
+   * @param {string} paymentMode - "CASH" | "CARD" | "UPI" | "NET_BANKING"
+   * @returns {PaymentResponse}
+   */
+  labPayment: (labOrderId, paymentMode) => {
+    return axiosInstance.post(
+      `/lab-technicians/payment/${labOrderId}`,
+      { paymentMode }
+    );
+  },
+
+  /**
+   * GET /api/lab-technicians/receipt/{labOrderId}
+   * Fetch laboratory payment receipt for a given lab order (LAB_TECHNICIAN/PATIENT)
+   * @param {number} labOrderId
+   * @returns {ReceiptResponse}
+   */
+  labReceipt: (labOrderId) => {
+    return axiosInstance.get(`/lab-technicians/receipt/${labOrderId}`);
   },
 };
 

@@ -62,11 +62,21 @@ export default function OfflinePatientRegistration() {
           currentOfflineIds.push(pId);
           localStorage.setItem('hms_offline_patient_ids', JSON.stringify(currentOfflineIds));
         }
+
+        const todayRegisteredList = JSON.parse(localStorage.getItem('hms_today_registered_patients') || '[]');
+        const todayStr = new Date().toISOString().split('T')[0];
+        if (!todayRegisteredList.some((item) => item.id === pId)) {
+          todayRegisteredList.push({ id: pId, date: todayStr, timestamp: Date.now() });
+          localStorage.setItem('hms_today_registered_patients', JSON.stringify(todayRegisteredList));
+        }
       }
+
 
       toast.success('Walk-in patient registered successfully!');
       setRegisteredPatient(savedPatient);
+      window.dispatchEvent(new Event('hms_dashboard_refresh'));
     } catch (err) {
+
       console.error('Registration failed:', err);
       toast.error(err.response?.data?.message || 'Failed to register patient. Mobile or Email may already exist.');
     } finally {

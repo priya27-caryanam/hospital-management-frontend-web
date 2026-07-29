@@ -1,6 +1,6 @@
 /**
  * DoctorDashboard — Main dashboard for logged-in doctors
- * Shows welcome message, profile stats, and quick action links.
+ * Shows welcome message, profile stats, quick action links, and emergency status declaration.
  */
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -14,11 +14,15 @@ import {
   User,
   Activity,
   FlaskConical,
+  AlertTriangle,
+  ShieldAlert,
+  X,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../context/AuthContext';
 import doctorApi from '../../api/doctorApi';
 import dashboardApi from '../../api/dashboardApi';
+import doctorAvailabilityApi from '../../api/doctorAvailabilityApi';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 import StatsCard from '../../components/common/StatsCard';
 
@@ -29,6 +33,10 @@ export default function DoctorDashboard() {
   const [doctor, setDoctor] = useState(null);
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
+
+  // Emergency Modal state
+  const [showEmergencyModal, setShowEmergencyModal] = useState(false);
+  const [submittingEmergency, setSubmittingEmergency] = useState(false);
 
   /** Fetch doctor profile and stats */
   useEffect(() => {
@@ -49,6 +57,27 @@ export default function DoctorDashboard() {
     };
     fetchProfileAndStats();
   }, [user.userId]);
+
+  /** Handle Doctor Emergency Status Confirmation */
+  const handleConfirmEmergency = async () => {
+    const doctorId = doctor?.id || user?.userId;
+    if (!doctorId) {
+      toast.error('Doctor profile ID not found.');
+      return;
+    }
+    setSubmittingEmergency(true);
+    try {
+      await doctorAvailabilityApi.markEmergency(doctorId);
+      toast.success('Emergency mode activated! Status updated & today\'s affected appointments cancelled.');
+      setShowEmergencyModal(false);
+    } catch (err) {
+      console.error('Emergency activation failed:', err);
+      const errMsg = err.response?.data?.message || err.message || 'Failed to activate emergency mode.';
+      toast.error(errMsg);
+    } finally {
+      setSubmittingEmergency(false);
+    }
+  };
 
   if (loading) return <LoadingSpinner fullPage />;
 
@@ -86,10 +115,10 @@ export default function DoctorDashboard() {
 
   return (
     <div className="space-y-8">
-      {/* ── Header / Welcome ──────────────────────────────── */}
-      <div className="rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 p-8 text-white shadow-lg">
+      {/* ── Header / Welcome + Emergency Button ──────────── */}
+      <div className="rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 p-6 md:p-8 text-white shadow-lg flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div className="flex items-center gap-4">
-          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white/20 backdrop-blur-sm">
+          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white/20 backdrop-blur-sm shrink-0">
             <Stethoscope className="h-8 w-8" />
           </div>
           <div>
@@ -104,6 +133,16 @@ export default function DoctorDashboard() {
             </p>
           </div>
         </div>
+
+        {/* Emergency Trigger Button */}
+        <button
+          onClick={() => setShowEmergencyModal(true)}
+          className="inline-flex items-center justify-center gap-2 rounded-xl bg-rose-500 hover:bg-rose-600 text-white px-5 py-3 text-sm font-bold shadow-md hover:shadow-lg transition-all cursor-pointer border border-rose-400 shrink-0"
+          title="Mark unavailable due to emergency"
+        >
+          <ShieldAlert className="h-5 w-5 animate-pulse" />
+          Emergency Mode
+        </button>
       </div>
 
       {/* ── Stats Cards ───────────────────────────────────── */}
@@ -220,6 +259,78 @@ export default function DoctorDashboard() {
           schedule and update appointment statuses.
         </p>
       </div>
+
+      {/* ── Emergency Confirmation Modal (Step 4) ──────────── */}
+      {showEmergencyModal && (
+        <div
+          onClick={() => setShowEmergencyModal(false)}
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fade-in cursor-pointer"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="relative w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl border border-rose-100 cursor-default space-y-5"
+          >
+            {/* Header */}
+            <div className="flex items-start justify-between">
+              <div className="flex items-center gap-3">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-rose-100 text-rose-600 shrink-0">
+                  <AlertTriangle className="h-6 w-6" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-slate-900">Emergency Mode</h3>
+                  <p className="text-xs text-rose-600 font-semibold">Doctor Availability Alert</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowEmergencyModal(false)}
+                className="rounded-xl p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition-colors"
+                title="Cancel"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Confirmation Dialog Body */}
+            <div className="space-y-3 rounded-2xl bg-rose-50/60 border border-rose-200/80 p-4 text-slate-700 text-sm leading-relaxed">
+              <p className="font-semibold text-rose-900">
+                You are about to mark yourself as unavailable due to an emergency.
+              </p>
+              <p className="text-xs text-rose-700">
+                This action may affect today's scheduled appointments.
+              </p>
+              <p className="font-bold text-slate-900 pt-1">Continue?</p>
+            </div>
+
+            {/* Modal Actions */}
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowEmergencyModal(false)}
+                disabled={submittingEmergency}
+                className="rounded-xl border border-slate-200 px-4 py-2.5 text-xs font-bold text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmEmergency}
+                disabled={submittingEmergency}
+                className="rounded-xl bg-rose-600 hover:bg-rose-700 text-white px-5 py-2.5 text-xs font-bold shadow-md hover:shadow-lg transition-all cursor-pointer disabled:opacity-50 flex items-center gap-2"
+              >
+                {submittingEmergency ? (
+                  <>
+                    <span className="h-3.5 w-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    Updating Status...
+                  </>
+                ) : (
+                  'Confirm Emergency'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+

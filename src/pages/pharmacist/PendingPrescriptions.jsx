@@ -23,7 +23,9 @@ import { useAuth } from '../../context/AuthContext';
 
 export default function PendingPrescriptions() {
   const { user } = useAuth();
+  const [activeTab, setActiveTab] = useState('PENDING'); // PENDING | DISPENSED | ALL
   const [prescriptions, setPrescriptions] = useState([]);
+  const [dispensedList, setDispensedList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [dispensingId, setDispensingId] = useState(null);
   const [selectedPrescriptionId, setSelectedPrescriptionId] = useState(null);
@@ -42,19 +44,46 @@ export default function PendingPrescriptions() {
   const fetchPrescriptions = async () => {
     setLoading(true);
     try {
-      const res = await pharmacyApi.getPendingPrescriptions();
-      setPrescriptions(res.data || []);
+      const [pendingRes, allRes] = await Promise.all([
+        pharmacyApi.getPendingPrescriptions().catch(() => ({ data: [] })),
+        prescriptionApi.getAll().catch(() => ({ data: [] })),
+      ]);
+
+      const pending = pendingRes.data || [];
+      const allRx = allRes.data || [];
+
+      // Backend dispensed or completed prescriptions
+      const backendDispensed = allRx.filter((r) => r.status === 'DISPENSED' || r.status === 'COMPLETED');
+      const localDispensed = JSON.parse(localStorage.getItem('hms_dispensed_prescriptions') || '[]');
+
+      // Merge backend and local dispensed without duplicates
+      const dispensedMap = new Map();
+      [...backendDispensed, ...localDispensed].forEach((item) => {
+        const id = item.prescriptionId || item.id;
+        if (id && !dispensedMap.has(id)) {
+          dispensedMap.set(id, {
+            ...item,
+            prescriptionId: id,
+            status: item.status || 'DISPENSED',
+          });
+        }
+      });
+
+      setPrescriptions(pending);
+      setDispensedList(Array.from(dispensedMap.values()));
     } catch (err) {
-      console.error('Failed to load pending prescriptions:', err);
-      toast.error('Failed to load pending prescriptions queue');
+      console.error('Failed to load prescriptions queue:', err);
+      toast.error('Failed to load prescriptions queue');
     } finally {
       setLoading(false);
     }
+
   };
 
   useEffect(() => {
     fetchPrescriptions();
   }, []);
+
 
   /** Dispense via POST /api/pharmacy/dispense/{prescriptionId}?pharmacistId={pharmacistId} */
   const handleDispense = async (prescriptionId) => {
@@ -63,6 +92,24 @@ export default function PendingPrescriptions() {
       const pharmacistId = user?.userId || user?.id || 1;
       await pharmacyApi.dispense(prescriptionId, pharmacistId);
       toast.success(`Prescription #${prescriptionId} medications dispensed successfully!`);
+
+      // Add to local dispensed history list so pharmacist can see who received medicines
+      const rx = prescriptions.find((p) => (p.prescriptionId || p.id) === prescriptionId);
+      if (rx) {
+        const dispensedRecord = {
+          ...rx,
+          status: 'DISPENSED',
+          dispensedAt: new Date().toISOString(),
+          pharmacistName: user?.name || 'Pharmacist',
+        };
+        const currentDispensed = JSON.parse(localStorage.getItem('hms_dispensed_prescriptions') || '[]');
+        if (!currentDispensed.some((d) => (d.prescriptionId || d.id) === prescriptionId)) {
+          const updated = [dispensedRecord, ...currentDispensed];
+          localStorage.setItem('hms_dispensed_prescriptions', JSON.stringify(updated));
+          setDispensedList(updated);
+        }
+      }
+
       fetchPrescriptions();
     } catch (err) {
       console.error(err);
@@ -141,7 +188,7 @@ export default function PendingPrescriptions() {
       header: 'Prescribed Date',
       render: (row) => (
         <span className="text-xs text-slate-600 font-medium">
-          {formatDate(row.createdAt)}
+          {formatDate(row.createdAt || row.dispensedAt)}
         </span>
       ),
     },
@@ -212,16 +259,23 @@ export default function PendingPrescriptions() {
     },
   ];
 
+  const displayedData =
+    activeTab === 'PENDING'
+      ? prescriptions
+      : activeTab === 'DISPENSED'
+      ? dispensedList
+      : [...prescriptions, ...dispensedList];
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
             <Pill className="h-7 w-7 text-emerald-600" />
-            Pending Prescriptions Queue
+            Pharmacy Prescriptions Management
           </h1>
           <p className="text-sm text-slate-500">
-            Review prescriptions, process pharmacy payments, and dispense medications
+            Review prescriptions, process pharmacy payments, and view dispensed medications history
           </p>
         </div>
         <button
@@ -232,12 +286,51 @@ export default function PendingPrescriptions() {
         </button>
       </div>
 
+      {/* Status Tabs: Pending / Dispensed / All */}
+      <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
+        <button
+          onClick={() => setActiveTab('PENDING')}
+          className={`rounded-xl px-4 py-2 text-xs font-bold transition-all ${
+            activeTab === 'PENDING'
+              ? 'bg-amber-500 text-white shadow-sm'
+              : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+          }`}
+        >
+          Pending Queue ({prescriptions.length})
+        </button>
+        <button
+          onClick={() => setActiveTab('DISPENSED')}
+          className={`rounded-xl px-4 py-2 text-xs font-bold transition-all ${
+            activeTab === 'DISPENSED'
+              ? 'bg-emerald-600 text-white shadow-sm'
+              : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+          }`}
+        >
+          Dispensed / Completed ({dispensedList.length})
+        </button>
+        <button
+          onClick={() => setActiveTab('ALL')}
+          className={`rounded-xl px-4 py-2 text-xs font-bold transition-all ${
+            activeTab === 'ALL'
+              ? 'bg-blue-600 text-white shadow-sm'
+              : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+          }`}
+        >
+          All Prescriptions ({prescriptions.length + dispensedList.length})
+        </button>
+      </div>
+
       <DataTable
         columns={columns}
-        data={prescriptions}
+        data={displayedData}
         loading={loading}
-        emptyMessage="No pending prescriptions in queue."
+        emptyMessage={
+          activeTab === 'DISPENSED'
+            ? 'No dispensed prescriptions recorded yet.'
+            : 'No pending prescriptions in queue.'
+        }
       />
+
 
       {/* ─── View Prescription Details Modal ─── */}
       {selectedPrescriptionId && (

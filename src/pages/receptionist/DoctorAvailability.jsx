@@ -43,11 +43,11 @@ const EMPTY_FORM = {
 export default function DoctorAvailability() {
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [availabilities, setAvailabilities] = useState([]);
+  const [allDoctors, setAllDoctors] = useState([]);
   const [departments, setDepartments] = useState([]);
-  const [selectedDeptId, setSelectedDeptId] = useState('');
-  const [doctors, setDoctors] = useState([]);
+  const [selectedDeptId, setSelectedDeptId] = useState('ALL');
   const [loading, setLoading] = useState(true);
-  const [fetchingDoctors, setFetchingDoctors] = useState(false);
+  const [error, setError] = useState(null);
 
   // Form Modal state
   const [showModal, setShowModal] = useState(false);
@@ -60,64 +60,51 @@ export default function DoctorAvailability() {
   const [emergencyReason, setEmergencyReason] = useState('');
   const [submittingEmergency, setSubmittingEmergency] = useState(false);
 
-  /** Load departments */
-  useEffect(() => {
-    const loadDepts = async () => {
-      try {
-        const res = await departmentApi.getAll();
-        setDepartments(res.data || []);
-        if (res.data?.length > 0) {
-          setSelectedDeptId(res.data[0].id);
-        }
-      } catch (err) {
-        console.error(err);
-        toast.error('Failed to load departments');
-      }
-    };
-    loadDepts();
-  }, []);
-
-  /** Fetch doctors when department changes */
-  useEffect(() => {
-    if (!selectedDeptId) return;
-    const loadDoctors = async () => {
-      setFetchingDoctors(true);
-      try {
-        const res = await doctorApi.getByDepartment(selectedDeptId);
-        setDoctors(res.data || []);
-      } catch (err) {
-        console.error(err);
-        toast.error('Failed to load department doctors');
-      } finally {
-        setFetchingDoctors(false);
-      }
-    };
-    loadDoctors();
-  }, [selectedDeptId]);
-
-  /** Fetch availabilities by selected date */
-  const fetchAvailabilitiesByDate = useCallback(async () => {
+  /** Load departments and doctors for all departments */
+  const fetchMetadataAndAvailabilities = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
-      const res = await doctorAvailabilityApi.getByDate(selectedDate);
-      setAvailabilities(res.data || []);
+      // 1. Load departments
+      const deptRes = await departmentApi.getAll();
+      const deptList = deptRes.data || [];
+      setDepartments(deptList);
+
+      // 2. Fetch doctors for all departments
+      const docPromises = deptList.map((d) => doctorApi.getByDepartment(d.id).catch(() => ({ data: [] })));
+      const docResults = await Promise.all(docPromises);
+      const docMap = new Map();
+      docResults.forEach((res) => {
+        (res.data || []).forEach((d) => {
+          if (d && d.id) docMap.set(d.id, d);
+        });
+      });
+      const uniqueDoctors = Array.from(docMap.values());
+      setAllDoctors(uniqueDoctors);
+
+      // 3. Fetch availabilities for selected date
+      const availRes = await doctorAvailabilityApi.getByDate(selectedDate).catch(() => ({ data: [] }));
+      setAvailabilities(availRes.data || []);
     } catch (err) {
       console.error(err);
-      toast.error('Failed to load doctor availabilities for selected date');
+      setError('Failed to load doctor availability data.');
+      toast.error('Failed to load doctor availabilities');
     } finally {
       setLoading(false);
     }
   }, [selectedDate]);
 
   useEffect(() => {
-    fetchAvailabilitiesByDate();
-  }, [fetchAvailabilitiesByDate]);
+    fetchMetadataAndAvailabilities();
+  }, [fetchMetadataAndAvailabilities]);
 
-  const handleOpenAdd = () => {
+  const handleOpenAdd = (doc = null) => {
     setFormData({
       ...EMPTY_FORM,
       availableDate: selectedDate,
-      doctorId: doctors.length > 0 ? doctors[0].id : '',
+      doctorId: doc ? doc.id : (allDoctors.length > 0 ? allDoctors[0].id : ''),
+      startTime: '10:00',
+      endTime: '19:00',
     });
     setEditingId(null);
     setShowModal(true);
@@ -128,10 +115,10 @@ export default function DoctorAvailability() {
       doctorId: item.doctorId || '',
       availableDate: item.availableDate || selectedDate,
       status: item.status || 'AVAILABLE',
-      startTime: item.startTime || '09:00',
-      endTime: item.endTime || '17:00',
+      startTime: item.startTimeRaw || item.startTime || '10:00',
+      endTime: item.endTimeRaw || item.endTime || '19:00',
     });
-    setEditingId(item.id);
+    setEditingId(item.availabilityId || null);
     setShowModal(true);
   };
 
@@ -169,7 +156,8 @@ export default function DoctorAvailability() {
       }
 
       setShowModal(false);
-      fetchAvailabilitiesByDate();
+      fetchMetadataAndAvailabilities();
+      window.dispatchEvent(new Event('hms_dashboard_refresh'));
     } catch (err) {
       console.error(err);
       toast.error(err.response?.data?.message || 'Failed to save doctor availability');
@@ -185,21 +173,10 @@ export default function DoctorAvailability() {
     try {
       await doctorAvailabilityApi.markEmergency(emergencyDoctorId);
       toast.success('Doctor status updated to EMERGENCY successfully!');
-      
-      // Optionally notify registered patients
-      try {
-        await notificationApi.create({
-          patientId: 1, // Global system alert / sample patient notification
-          title: 'DOCTOR EMERGENCY ALERT',
-          message: `Doctor availability set to EMERGENCY. Reason: ${emergencyReason || 'Unforeseen emergency situation'}. Remaining appointments are subject to cancellation.`,
-        });
-      } catch (notifErr) {
-        console.warn('Emergency status updated, but notification dispatch failed:', notifErr);
-      }
-
       setEmergencyDoctorId(null);
       setEmergencyReason('');
-      fetchAvailabilitiesByDate();
+      fetchMetadataAndAvailabilities();
+      window.dispatchEvent(new Event('hms_dashboard_refresh'));
     } catch (err) {
       console.error(err);
       toast.error(err.response?.data?.message || 'Failed to set doctor emergency status');
@@ -208,37 +185,86 @@ export default function DoctorAvailability() {
     }
   };
 
+  /** Build Merged Doctor Availabilities Array so EVERY active doctor is displayed */
+  const mergedRows = allDoctors
+    .filter((doc) => {
+      if (selectedDeptId === 'ALL' || !selectedDeptId) return true;
+      return String(doc.departmentId) === String(selectedDeptId);
+    })
+    .map((doc) => {
+      const record = availabilities.find((a) => Number(a.doctorId) === Number(doc.id));
+      const docName = `Dr. ${doc.firstName ? `${doc.firstName} ${doc.lastName}` : doc.name || 'Doctor'}`;
+      const deptName = doc.departmentName || doc.department || 'General';
+      const specName = doc.specializationName || doc.specialization || 'Medical Specialist';
+
+      if (record) {
+        return {
+          id: record.id,
+          availabilityId: record.id,
+          doctorId: doc.id,
+          doctorName: docName,
+          departmentName: deptName,
+          specializationName: specName,
+          availableDate: record.availableDate || selectedDate,
+          status: record.status || 'AVAILABLE',
+          startTime: record.startTime || '10:00 AM',
+          endTime: record.endTime || '07:00 PM',
+          startTimeRaw: record.startTime,
+          endTimeRaw: record.endTime,
+          hasCustomSchedule: true,
+        };
+      }
+
+      // Default values when no doctor availability is configured in backend
+      return {
+        id: `default-${doc.id}`,
+        availabilityId: null,
+        doctorId: doc.id,
+        doctorName: docName,
+        departmentName: deptName,
+        specializationName: specName,
+        availableDate: selectedDate,
+        status: doc.available === false ? 'UNAVAILABLE' : 'AVAILABLE',
+        startTime: '10:00 AM',
+        endTime: '07:00 PM',
+        startTimeRaw: '10:00',
+        endTimeRaw: '19:00',
+        hasCustomSchedule: false,
+      };
+    });
+
   const columns = [
     {
-      header: 'ID',
-      accessor: 'id',
-      render: (row) => <span className="font-semibold text-slate-700">#{row.id}</span>,
+      header: 'Doctor ID',
+      accessor: 'doctorId',
+      render: (row) => <span className="font-semibold text-slate-700">#{row.doctorId}</span>,
     },
     {
       header: 'Doctor Name',
       accessor: 'doctorName',
       render: (row) => (
-        <span className="font-bold text-slate-900 flex items-center gap-1.5">
-          <Stethoscope className="h-4 w-4 text-blue-600" />
-          {row.doctorName || `Doctor #${row.doctorId}`}
+        <div>
+          <span className="font-bold text-slate-900 flex items-center gap-1.5">
+            <Stethoscope className="h-4 w-4 text-blue-600" />
+            {row.doctorName}
+          </span>
+        </div>
+      ),
+    },
+    {
+      header: 'Department',
+      accessor: 'departmentName',
+      render: (row) => (
+        <span className="inline-flex rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-bold text-blue-700">
+          {row.departmentName}
         </span>
       ),
     },
     {
-      header: 'Available Date',
-      accessor: 'availableDate',
+      header: 'Specialization',
+      accessor: 'specializationName',
       render: (row) => (
-        <span className="text-slate-700 font-medium">{row.availableDate}</span>
-      ),
-    },
-    {
-      header: 'Schedule Shift',
-      accessor: 'startTime',
-      render: (row) => (
-        <span className="inline-flex items-center gap-1 text-xs font-semibold text-slate-600 bg-slate-100 px-2.5 py-1 rounded-full border border-slate-200">
-          <Clock className="h-3 w-3" />
-          {row.startTime || '09:00'} - {row.endTime || '17:00'}
-        </span>
+        <span className="text-xs font-semibold text-slate-700">{row.specializationName}</span>
       ),
     },
     {
@@ -251,15 +277,35 @@ export default function DoctorAvailability() {
       ),
     },
     {
+      header: 'Start Time',
+      accessor: 'startTime',
+      render: (row) => (
+        <span className="inline-flex items-center gap-1 text-xs font-semibold text-slate-700 bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200">
+          <Clock className="h-3 w-3 text-blue-600" />
+          {row.startTime}
+        </span>
+      ),
+    },
+    {
+      header: 'End Time',
+      accessor: 'endTime',
+      render: (row) => (
+        <span className="inline-flex items-center gap-1 text-xs font-semibold text-slate-700 bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200">
+          <Clock className="h-3 w-3 text-blue-600" />
+          {row.endTime}
+        </span>
+      ),
+    },
+    {
       header: 'Actions',
-      accessor: 'id',
+      accessor: 'doctorId',
       render: (row) => (
         <div className="flex items-center gap-2">
           <button
-            onClick={() => handleOpenEdit(row)}
+            onClick={() => (row.hasCustomSchedule ? handleOpenEdit(row) : handleOpenAdd(allDoctors.find((d) => d.id === row.doctorId)))}
             className="rounded-lg px-2.5 py-1 text-xs font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200 transition-colors"
           >
-            Edit
+            {row.hasCustomSchedule ? 'Edit Schedule' : 'Set Timing'}
           </button>
           {row.status !== 'EMERGENCY' && (
             <button
@@ -275,7 +321,26 @@ export default function DoctorAvailability() {
     },
   ];
 
-  if (loading && availabilities.length === 0) return <LoadingSpinner fullPage />;
+
+  if (loading && allDoctors.length === 0) return <LoadingSpinner fullPage />;
+
+  if (error && allDoctors.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 text-center space-y-4 bg-white rounded-2xl border border-slate-200 p-8 shadow-sm">
+        <AlertTriangle className="h-12 w-12 text-rose-500" />
+        <div>
+          <h2 className="text-lg font-bold text-slate-800">Doctor Availability Unavailable</h2>
+          <p className="text-sm text-slate-500 mt-1">{error}</p>
+        </div>
+        <button
+          onClick={fetchMetadataAndAvailabilities}
+          className="rounded-xl bg-blue-600 px-5 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 transition-colors"
+        >
+          Retry Loading
+        </button>
+      </div>
+    );
+  }
 
   const inputClass =
     'w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100 transition-all bg-white';
@@ -290,11 +355,11 @@ export default function DoctorAvailability() {
             Daily Doctor Availability & Emergency Status
           </h1>
           <p className="mt-1 text-sm text-slate-500">
-            Set daily doctor working hours, leaves, and declare doctor emergency status
+            Set daily doctor working hours (Default: 10:00 AM – 07:00 PM), leaves, and declare emergency status
           </p>
         </div>
         <button
-          onClick={handleOpenAdd}
+          onClick={() => handleOpenAdd(null)}
           className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 transition-colors"
         >
           <Plus className="h-4 w-4" />
@@ -325,6 +390,7 @@ export default function DoctorAvailability() {
               onChange={(e) => setSelectedDeptId(e.target.value)}
               className={inputClass}
             >
+              <option value="ALL">All Departments ({allDoctors.length} Doctors)</option>
               {departments.map((dept) => (
                 <option key={dept.id} value={dept.id}>
                   {dept.departmentName}
@@ -334,7 +400,7 @@ export default function DoctorAvailability() {
           </div>
           <div className="flex justify-end pt-5">
             <button
-              onClick={fetchAvailabilitiesByDate}
+              onClick={fetchMetadataAndAvailabilities}
               className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
             >
               <RefreshCw className="h-4 w-4" />
@@ -345,8 +411,9 @@ export default function DoctorAvailability() {
 
         <DataTable
           columns={columns}
-          data={availabilities}
-          emptyMessage={`No doctor availability records found for date ${selectedDate}.`}
+          data={mergedRows}
+          loading={loading}
+          emptyMessage={`No active doctors found for selected department.`}
         />
       </div>
 
@@ -376,13 +443,14 @@ export default function DoctorAvailability() {
                   className={inputClass}
                 >
                   <option value="">-- Select Doctor --</option>
-                  {doctors.map((doc) => (
+                  {allDoctors.map((doc) => (
                     <option key={doc.id} value={doc.id}>
-                      Dr. {doc.firstName} {doc.lastName} ({doc.specializationName || 'Doctor'})
+                      Dr. {doc.firstName} {doc.lastName} ({doc.specializationName || doc.specialization || 'Doctor'})
                     </option>
                   ))}
                 </select>
               </div>
+
 
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Date *</label>

@@ -121,6 +121,7 @@ export default function OnlineAppointmentRequests() {
       await appointmentApi.approve(id);
       toast.success(`Appointment #${id} approved successfully!`);
       fetchAppointments();
+      window.dispatchEvent(new Event('hms_dashboard_refresh'));
     } catch (err) {
       console.error(err);
       toast.error(err.response?.data?.message || 'Failed to approve appointment');
@@ -135,6 +136,7 @@ export default function OnlineAppointmentRequests() {
       await appointmentApi.reject(id);
       toast.success(`Appointment #${id} rejected.`);
       fetchAppointments();
+      window.dispatchEvent(new Event('hms_dashboard_refresh'));
     } catch (err) {
       console.error(err);
       toast.error(err.response?.data?.message || 'Failed to reject appointment');
@@ -142,6 +144,7 @@ export default function OnlineAppointmentRequests() {
       setActionLoadingId(null);
     }
   };
+
 
   const handleProcessConsultationPayment = async () => {
     if (!paymentModalAppt) return;
@@ -349,15 +352,18 @@ export default function OnlineAppointmentRequests() {
           </div>
 
           <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 pointer-events-none z-10" />
             <input
               type="text"
               placeholder="Search request by patient, doctor, or ID..."
               value={searchText}
               onChange={(e) => setSearchText(e.target.value)}
-              className="w-full pl-9 rounded-xl border border-slate-200 p-2.5 text-xs outline-none focus:border-purple-500"
+              style={{ paddingLeft: '2.5rem' }}
+              className="w-full pr-4 py-2.5 rounded-xl border border-slate-200 text-xs outline-none focus:border-purple-500 bg-white"
             />
           </div>
+
+
         </div>
 
         <button

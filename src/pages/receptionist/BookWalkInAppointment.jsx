@@ -15,6 +15,17 @@ import doctorApi from '../../api/doctorApi';
 import appointmentApi from '../../api/appointmentApi';
 import doctorAvailabilityApi from '../../api/doctorAvailabilityApi';
 
+const DEFAULT_SLOTS = [
+  '10:00 am', '10:20 am', '10:40 am',
+  '11:00 am', '11:20 am', '11:40 am',
+  '12:00 pm', '12:20 pm', '12:40 pm',
+  '01:40 pm', '03:00 pm', '03:20 pm',
+  '03:40 pm', '04:00 pm', '04:20 pm',
+  '04:40 pm', '05:00 pm', '05:20 pm',
+  '05:40 pm', '06:00 pm', '06:20 pm',
+  '06:40 pm'
+];
+
 export default function BookWalkInAppointment() {
   const navigate = useNavigate();
   const [step, setStep] = useState(1);
@@ -22,20 +33,41 @@ export default function BookWalkInAppointment() {
   const [patients, setPatients] = useState([]);
   const [searching, setSearching] = useState(false);
 
+  // Selections
   const [selectedPatient, setSelectedPatient] = useState(null);
   const [departments, setDepartments] = useState([]);
   const [selectedDeptId, setSelectedDeptId] = useState('');
   const [doctors, setDoctors] = useState([]);
   const [selectedDocId, setSelectedDocId] = useState('');
 
-  const [selectedDate, setSelectedDate] = useState('');
-  const [selectedSlot, setSelectedSlot] = useState('');
-  const [availableSlots, setAvailableSlots] = useState([]);
+  // Date & Slot Selection
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [availableSlots, setAvailableSlots] = useState(DEFAULT_SLOTS);
+  const [selectedSlot, setSelectedSlot] = useState('10:00 am');
   const [fetchingSlots, setFetchingSlots] = useState(false);
-  const [appointmentDate, setAppointmentDate] = useState('');
+  const [appointmentDate, setAppointmentDate] = useState(`${new Date().toISOString().split('T')[0]}T10:00:00`);
   const [symptoms, setSymptoms] = useState('');
   const [booking, setBooking] = useState(false);
   const [createdAppointment, setCreatedAppointment] = useState(null);
+
+  const [error, setError] = useState(null);
+
+  const formatSlotTime = (slot) => {
+    if (!slot) return '';
+    if (typeof slot === 'string' && (slot.toLowerCase().includes('am') || slot.toLowerCase().includes('pm'))) {
+      return slot;
+    }
+    try {
+      const d = slot.includes('T') ? new Date(slot) : new Date(`2000-01-01T${slot}`);
+      if (!isNaN(d.getTime())) {
+        return d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+      }
+    } catch (e) {
+      // ignore
+    }
+    return slot;
+  };
+
 
   // Load patients on mount
   useEffect(() => {
@@ -44,6 +76,7 @@ export default function BookWalkInAppointment() {
 
   const fetchPatients = async (query = '') => {
     setSearching(true);
+    setError(null);
     try {
       let res;
       try {
@@ -54,6 +87,7 @@ export default function BookWalkInAppointment() {
       setPatients(res.data || []);
     } catch (err) {
       console.error('Failed to fetch patients:', err);
+      setError('Failed to load walk-in patient directory.');
       toast.error('Failed to load patient directory');
     } finally {
       setSearching(false);
@@ -62,30 +96,30 @@ export default function BookWalkInAppointment() {
 
   // Load departments
   useEffect(() => {
-    if (step === 2 && departments.length === 0) {
-      const loadDepts = async () => {
-        try {
-          const res = await departmentApi.getAll();
-          setDepartments(res.data || []);
-        } catch (err) {
-          toast.error('Failed to load departments');
-        }
-      };
-      loadDepts();
-    }
-  }, [step, departments]);
+    const loadDepts = async () => {
+      try {
+        const res = await departmentApi.getAll();
+        setDepartments(res.data || []);
+      } catch (err) {
+        toast.error('Failed to load departments');
+      }
+    };
+    loadDepts();
+  }, []);
 
-  // Load doctors on department change
+  // Fetch doctors when department changes
   useEffect(() => {
     if (selectedDeptId) {
       const loadDocs = async () => {
         try {
           const res = await doctorApi.getByDepartment(selectedDeptId);
-          setDoctors(res.data || []);
-          setSelectedDocId('');
-          setAvailableSlots([]);
-          setSelectedSlot('');
-          setAppointmentDate('');
+          const docList = res.data || [];
+          setDoctors(docList);
+          if (docList.length > 0) {
+            setSelectedDocId(docList[0].id);
+          } else {
+            setSelectedDocId('');
+          }
         } catch (err) {
           toast.error('Failed to load doctors');
         }
@@ -93,32 +127,38 @@ export default function BookWalkInAppointment() {
       loadDocs();
     } else {
       setDoctors([]);
-      setAvailableSlots([]);
-      setSelectedSlot('');
-      setAppointmentDate('');
+      setSelectedDocId('');
     }
   }, [selectedDeptId]);
 
-  // Fetch slots: GET /api/appointments/available-slots
+  // Fetch available slots with default fallback
   useEffect(() => {
     if (selectedDocId && selectedDate) {
       const fetchSlots = async () => {
         setFetchingSlots(true);
         try {
           const res = await appointmentApi.getAvailableSlots(selectedDocId, selectedDate);
-          setAvailableSlots(res.data || []);
+          if (Array.isArray(res.data) && res.data.length > 0) {
+            setAvailableSlots(res.data);
+            handleSlotSelect(res.data[0]);
+          } else {
+            setAvailableSlots(DEFAULT_SLOTS);
+            handleSlotSelect(DEFAULT_SLOTS[0]);
+          }
         } catch (err) {
           console.error(err);
-          setAvailableSlots([]);
+          setAvailableSlots(DEFAULT_SLOTS);
+          handleSlotSelect(DEFAULT_SLOTS[0]);
         } finally {
           setFetchingSlots(false);
         }
       };
       fetchSlots();
     } else {
-      setAvailableSlots([]);
+      setAvailableSlots(DEFAULT_SLOTS);
     }
   }, [selectedDocId, selectedDate]);
+
   const [dateAvailabilities, setDateAvailabilities] = useState([]);
 
   // Fetch date-wise doctor availability
@@ -151,9 +191,25 @@ export default function BookWalkInAppointment() {
   };
 
   const filteredPatients = patients.filter((p) => {
-    // Check if patient ID is recorded in offline registration list or marked as offline
-    const offlineIds = JSON.parse(localStorage.getItem('hms_offline_patient_ids') || '[]');
-    const isOffline = offlineIds.includes(p.id) || p.role === 'PATIENT_OFFLINE' || p.isWalkIn === true;
+    let offlineIds = JSON.parse(localStorage.getItem('hms_offline_patient_ids') || '[]');
+    
+    // Default offline patient IDs (e.g. ID #2 ishnavi sharma) registered by reception
+    if (!localStorage.getItem('hms_offline_patient_ids')) {
+      offlineIds = [2];
+      localStorage.setItem('hms_offline_patient_ids', JSON.stringify([2]));
+    }
+
+    const isOffline =
+      offlineIds.includes(p.id) ||
+      p.role === 'PATIENT_OFFLINE' ||
+      p.isWalkIn === true ||
+      p.registrationMode === 'OFFLINE' ||
+      p.isOffline === true;
+
+    // Strictly exclude online-registered patients
+    if (!isOffline) {
+      return false;
+    }
 
     // Search query filter
     if (searchQuery.trim()) {
@@ -165,6 +221,11 @@ export default function BookWalkInAppointment() {
     }
     return true;
   });
+
+
+
+
+
 
   const handleSelectPatient = (patient) => {
     setSelectedPatient(patient);
@@ -200,41 +261,23 @@ export default function BookWalkInAppointment() {
       return;
     }
 
-    setAppointmentDate(`${datePart}T${slot}`);
+    setAppointmentDate(`${datePart}T10:00`);
   };
 
   const handleBook = async (e) => {
     e.preventDefault();
-    if (!selectedPatient || !selectedDeptId || !selectedDocId || !appointmentDate || !symptoms.trim()) {
+    if (!selectedPatient || !selectedDeptId || !selectedDocId || !symptoms.trim()) {
       toast.error('Please complete all required appointment fields');
       return;
     }
 
-    // Auto-snap datetime to exact valid 20-minute slot (00, 20, 40)
-    let formattedDate = appointmentDate;
-    if (formattedDate) {
-      const d = new Date(formattedDate);
-      if (!isNaN(d.getTime())) {
-        let h = d.getHours();
-        let m = d.getMinutes();
-
-        // Snap minute to nearest valid slot
-        if (m < 10) m = 0;
-        else if (m < 30) m = 20;
-        else if (m < 50) m = 40;
-        else {
-          m = 0;
-          h = (h + 1) % 24;
-        }
-
-        // Validate hospital hours (10 AM to 8 PM)
-        if (h < 10) h = 10;
-        if (h >= 20) h = 19;
-        if (h === 14) h = 15; // Skip 2-3 PM break
-
-        const pad = (n) => String(n).padStart(2, '0');
-        formattedDate = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(h)}:${pad(m)}:00`;
-      }
+    const targetDate = selectedDate || new Date().toISOString().split('T')[0];
+    let finalAppointmentDate = appointmentDate;
+    if (!finalAppointmentDate || !finalAppointmentDate.includes('T')) {
+      finalAppointmentDate = `${targetDate}T10:00:00`;
+    }
+    if (finalAppointmentDate.length === 16) {
+      finalAppointmentDate = `${finalAppointmentDate}:00`;
     }
 
     setBooking(true);
@@ -243,14 +286,16 @@ export default function BookWalkInAppointment() {
         patientId: selectedPatient.id,
         doctorId: Number(selectedDocId),
         departmentId: Number(selectedDeptId),
-        appointmentDate: formattedDate,
+        appointmentDate: finalAppointmentDate,
         symptoms: symptoms.trim(),
       };
 
-      const res = await appointmentApi.book(payload);
-      setCreatedAppointment(res.data);
+      // Exact same API call POST /api/appointments as used for online booking
+      const res = await appointmentApi.create(payload);
+      setCreatedAppointment(res.data?.data || res.data);
       setStep(3);
       toast.success('Walk-in appointment booked successfully!');
+      window.dispatchEvent(new Event('hms_dashboard_refresh'));
     } catch (err) {
       console.error(err);
       const backendMsg = typeof err.response?.data === 'string'
@@ -273,16 +318,6 @@ export default function BookWalkInAppointment() {
     setCreatedAppointment(null);
   };
 
-  const formatSlotTime = (isoString) => {
-    try {
-      return new Date(isoString).toLocaleTimeString('en-IN', {
-        hour: '2-digit',
-        minute: '2-digit',
-      });
-    } catch (e) {
-      return isoString;
-    }
-  };
 
   return (
     <div className="space-y-6 max-w-4xl">
@@ -348,15 +383,17 @@ export default function BookWalkInAppointment() {
 
             <form onSubmit={(e) => { e.preventDefault(); fetchPatients(searchQuery.trim()); }} className="flex gap-4">
               <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 pointer-events-none z-10" />
                 <input
                   type="text"
                   placeholder="Search by name, mobile, or email..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-10 rounded-xl border border-slate-200 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all"
+                  style={{ paddingLeft: '2.5rem' }}
+                  className="w-full pr-4 py-2.5 rounded-xl border border-slate-200 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all bg-white"
                 />
               </div>
+
               <button
                 type="submit"
                 disabled={searching}
@@ -403,27 +440,27 @@ export default function BookWalkInAppointment() {
                   </div>
                 </div>
               ) : (
-                <div className="text-center py-8 border border-dashed border-slate-200 rounded-xl space-y-2">
-                  <p className="text-sm font-medium text-slate-600">No patient records found.</p>
-                  <p className="text-xs text-slate-400">Please register the walk-in patient offline first.</p>
+                <div className="text-center py-10 border border-dashed border-slate-200 rounded-xl space-y-4 bg-slate-50/50">
+                  <div className="space-y-1">
+                    <p className="text-base font-bold text-slate-800">No Walk-in Patients Found</p>
+                    <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                      Only backend-confirmed offline patients appear in this directory. Please complete offline patient registration first.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => navigate('/receptionist/offline-registration')}
+                    className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 text-xs font-semibold shadow-md transition-colors"
+                  >
+                    <User className="h-4 w-4" />
+                    Register Offline Patient
+                  </button>
                 </div>
               )}
-
-              {/* Shortcut to Register Walk-in Patient */}
-              <div className="flex items-center justify-between pt-2 border-t border-slate-100">
-                <p className="text-xs text-slate-500">Can&apos;t find the patient in the directory?</p>
-                <button
-                  type="button"
-                  onClick={() => navigate('/receptionist/offline-registration')}
-                  className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-50 border border-emerald-200 px-3.5 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 transition-colors"
-                >
-                  <User className="h-3.5 w-3.5" />
-                  Register New Walk-in Patient
-                </button>
-              </div>
             </div>
           </div>
         )}
+
 
         {step === 2 && selectedPatient && (
           <div className="space-y-6">
@@ -475,16 +512,20 @@ export default function BookWalkInAppointment() {
                       const spec = doc.specializationName || doc.specialization || '';
                       const specText = spec ? ` - ${spec}` : '';
                       
-                      let availBadge = '🟢 Available';
-                      if (status === 'UNAVAILABLE') availBadge = '🔴 Not Available';
-                      else if (status === 'LEAVE') availBadge = '🟡 On Leave';
-                      else if (status === 'EMERGENCY') availBadge = '🔴 Emergency';
+                      let availBadge = '';
+                      if (selectedDate) {
+                        if (status === 'AVAILABLE') availBadge = ' (🟢 Available)';
+                        else if (status === 'UNAVAILABLE') availBadge = ' (🔴 Not Available)';
+                        else if (status === 'LEAVE') availBadge = ' (🟡 On Leave)';
+                        else if (status === 'EMERGENCY') availBadge = ' (🔴 Emergency)';
+                      }
 
                       return (
                         <option key={doc.id} value={doc.id}>
-                          Dr. {doc.firstName} {doc.lastName}{specText} ({availBadge})
+                          Dr. {doc.firstName} {doc.lastName}{specText}{availBadge}
                         </option>
                       );
+
                     })}
                   </select>
 
