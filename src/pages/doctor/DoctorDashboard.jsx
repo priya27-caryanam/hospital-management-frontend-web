@@ -25,6 +25,7 @@ import { useAuth } from '../../context/AuthContext';
 import doctorApi from '../../api/doctorApi';
 import dashboardApi from '../../api/dashboardApi';
 import doctorAvailabilityApi from '../../api/doctorAvailabilityApi';
+import appointmentApi from '../../api/appointmentApi';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 import StatsCard from '../../components/common/StatsCard';
 
@@ -39,6 +40,7 @@ export default function DoctorDashboard() {
   const [showDeactivateModal, setShowDeactivateModal] = useState(false);
   const [submittingEmergency, setSubmittingEmergency] = useState(false);
   const [isEmergencyActive, setIsEmergencyActive] = useState(false);
+  const [emergencyReason, setEmergencyReason] = useState('Medical Emergency — consultation cancelled due to an urgent medical case.');
 
   useEffect(() => {
     const fetchProfileAndStats = async () => {
@@ -97,17 +99,22 @@ export default function DoctorDashboard() {
         }
       }
 
-      // Fetch pending/approved appointments for this doctor & notify affected patients
+      // Fetch pending/approved appointments for this doctor & notify affected patients with rejection prompt message
+      let affectedCount = 0;
       try {
         const apptsRes = await appointmentApi.getByDoctor(doctorId).catch(() => ({ data: [] }));
         const doctorAppts = apptsRes.data || [];
         const affectedAppts = doctorAppts.filter(
           (a) => a.status === 'PENDING' || a.status === 'APPROVED' || a.status === 'CONSULTATION_PENDING'
         );
+        affectedCount = affectedAppts.length;
 
         const localCancelled = JSON.parse(localStorage.getItem('hms_cancelled_emergency_appts') || '[]');
         const cancelledIds = new Set(localCancelled.map((x) => String(x)));
         const newEmergencyNotifs = [];
+
+        const docNameStr = doctor?.firstName ? `${doctor.firstName} ${doctor.lastName || ''}`.trim() : (user.name || 'Doctor');
+        const finalReasonPrompt = emergencyReason.trim() || 'Medical emergency — consultation cancelled due to urgent case.';
 
         for (const appt of affectedAppts) {
           const apptId = appt.id || appt.appointmentId;
@@ -119,15 +126,16 @@ export default function DoctorDashboard() {
             await appointmentApi.updateStatus(apptId, 'REJECTED').catch(() => null);
           } catch (e) {}
 
-          const docNameStr = doctor?.firstName ? `${doctor.firstName} ${doctor.lastName || ''}`.trim() : (user.name || 'Doctor');
           newEmergencyNotifs.push({
             id: `notif-emergency-${apptId}-${Date.now()}`,
-            title: '🚨 Emergency Appointment Cancellation',
-            message: `Urgent Notice: Your consultation (Appt #${apptId}) with Dr. ${docNameStr} has been CANCELLED due to a medical emergency. Please reschedule.`,
+            title: '🚨 Emergency Appointment Rejection',
+            message: `Urgent Notice: Your consultation (Appt #${apptId}) with Dr. ${docNameStr} has been REJECTED due to a medical emergency. Rejection Reason: "${finalReasonPrompt}". Please reschedule at your earliest convenience.`,
             createdAt: new Date().toISOString(),
             read: false,
             role: 'PATIENT',
             patientId: appt.patientId,
+            emergency: true,
+            rejectionReason: finalReasonPrompt,
           });
         }
 
@@ -155,7 +163,11 @@ export default function DoctorDashboard() {
         );
       }
       setIsEmergencyActive(true);
-      toast.success("Emergency mode activated! Status updated & today's affected appointments cancelled.");
+      if (affectedCount > 0) {
+        toast.success(`Emergency mode activated! Rejection prompt message sent to ${affectedCount} pending patient(s).`);
+      } else {
+        toast.success("Emergency mode activated! Doctor availability status updated.");
+      }
       setShowEmergencyModal(false);
     } catch (err) {
       console.error('Emergency activation failed:', err);
@@ -395,9 +407,21 @@ export default function DoctorDashboard() {
                 You are about to mark yourself as unavailable due to an emergency.
               </p>
               <p className="text-xs text-rose-700">
-                This action will automatically notify patients with pending consultations today.
+                This action will automatically cancel/reject today's pending consultations and send a rejection prompt message to affected patients.
               </p>
-              <p className="font-bold text-slate-900 pt-1">Confirm Emergency Mode?</p>
+              <div>
+                <label className="block text-xs font-bold text-rose-900 uppercase tracking-wider mb-1">
+                  Rejection Reason / Prompt Message for Patients
+                </label>
+                <textarea
+                  value={emergencyReason}
+                  onChange={(e) => setEmergencyReason(e.target.value)}
+                  placeholder="Enter rejection reason to notify pending patients..."
+                  rows={3}
+                  className="w-full rounded-xl border border-rose-300 bg-white p-2.5 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-rose-500 shadow-inner"
+                />
+              </div>
+              <p className="font-bold text-slate-900 pt-1">Confirm Emergency Mode & Send Rejection Prompt?</p>
             </div>
 
             {/* Modal Actions */}

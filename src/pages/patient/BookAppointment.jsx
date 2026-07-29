@@ -411,6 +411,24 @@ export default function BookAppointment() {
       ) : (
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <form onSubmit={handleSubmit} className="space-y-4">
+            {/* 1. Select Date (First) */}
+            <div className="space-y-1.5">
+              <label className="text-sm font-semibold text-slate-700">Select Date *</label>
+              <input
+                type="date"
+                value={selectedDate}
+                onChange={(e) => {
+                  setSelectedDate(e.target.value);
+                  setSelectedSlot('');
+                  setAppointmentDate('');
+                }}
+                required
+                min={new Date().toISOString().split('T')[0]}
+                className="w-full rounded-xl border border-slate-200 p-2.5 text-sm outline-none focus:border-blue-500"
+              />
+            </div>
+
+            {/* 2. Select Department & Select Doctor */}
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-1.5">
                 <label className="text-sm font-semibold text-slate-700">Select Department *</label>
@@ -485,23 +503,6 @@ export default function BookAppointment() {
                   );
                 })()}
               </div>
-            </div>
-
-            {/* Select Date */}
-            <div className="space-y-1.5">
-              <label className="text-sm font-semibold text-slate-700">Select Date *</label>
-              <input
-                type="date"
-                value={selectedDate}
-                onChange={(e) => {
-                  setSelectedDate(e.target.value);
-                  setSelectedSlot('');
-                  setAppointmentDate('');
-                }}
-                required
-                min={new Date().toISOString().split('T')[0]}
-                className="w-full rounded-xl border border-slate-200 p-2.5 text-sm outline-none focus:border-blue-500"
-              />
             </div>
 
             {/* Available Slots */}

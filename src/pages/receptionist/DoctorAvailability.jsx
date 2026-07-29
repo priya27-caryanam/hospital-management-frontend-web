@@ -20,6 +20,7 @@ import doctorAvailabilityApi from '../../api/doctorAvailabilityApi';
 import departmentApi from '../../api/departmentApi';
 import doctorApi from '../../api/doctorApi';
 import notificationApi from '../../api/notificationApi';
+import appointmentApi from '../../api/appointmentApi';
 import DataTable from '../../components/common/DataTable';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 
@@ -172,10 +173,81 @@ export default function DoctorAvailability() {
     setSubmittingEmergency(true);
     try {
       await doctorAvailabilityApi.markEmergency(emergencyDoctorId);
-      toast.success('Doctor status updated to EMERGENCY successfully!');
+
+      // Record emergency active in localStorage
+      const localEmergencies = JSON.parse(localStorage.getItem('hms_emergency_doctors') || '[]');
+      if (!localEmergencies.map((x) => String(x)).includes(String(emergencyDoctorId))) {
+        localStorage.setItem(
+          'hms_emergency_doctors',
+          JSON.stringify([...localEmergencies, String(emergencyDoctorId), Number(emergencyDoctorId)])
+        );
+      }
+
+      // Find target doctor info
+      const docObj = allDoctors.find((d) => Number(d.id) === Number(emergencyDoctorId));
+      const docNameStr = docObj ? `Dr. ${docObj.firstName ? `${docObj.firstName} ${docObj.lastName}` : docObj.name || 'Doctor'}` : `Doctor #${emergencyDoctorId}`;
+      const finalReasonPrompt = emergencyReason.trim() || 'Medical emergency — consultation cancelled due to urgent medical case.';
+
+      let affectedCount = 0;
+
+      // Fetch pending/approved appointments for this doctor & reject/notify affected patients
+      try {
+        const apptsRes = await appointmentApi.getByDoctor(emergencyDoctorId).catch(() => ({ data: [] }));
+        const doctorAppts = apptsRes.data || [];
+        const affectedAppts = doctorAppts.filter(
+          (a) => a.status === 'PENDING' || a.status === 'APPROVED' || a.status === 'CONSULTATION_PENDING'
+        );
+        affectedCount = affectedAppts.length;
+
+        const localCancelled = JSON.parse(localStorage.getItem('hms_cancelled_emergency_appts') || '[]');
+        const cancelledIds = new Set(localCancelled.map((x) => String(x)));
+        const newEmergencyNotifs = [];
+
+        for (const appt of affectedAppts) {
+          const apptId = appt.id || appt.appointmentId;
+          cancelledIds.add(String(apptId));
+
+          // Reject/cancel appointment if API permits
+          try {
+            await appointmentApi.reject(apptId).catch(() => null);
+            await appointmentApi.updateStatus(apptId, 'REJECTED').catch(() => null);
+          } catch (e) {}
+
+          newEmergencyNotifs.push({
+            id: `notif-emergency-${apptId}-${Date.now()}`,
+            title: '🚨 Emergency Appointment Rejection',
+            message: `Urgent Notice: Your consultation (Appt #${apptId}) with ${docNameStr} has been REJECTED due to a medical emergency. Rejection Reason: "${finalReasonPrompt}". Please reschedule at your earliest convenience.`,
+            createdAt: new Date().toISOString(),
+            read: false,
+            role: 'PATIENT',
+            patientId: appt.patientId,
+            emergency: true,
+            rejectionReason: finalReasonPrompt,
+          });
+        }
+
+        // Save cancelled IDs
+        localStorage.setItem('hms_cancelled_emergency_appts', JSON.stringify(Array.from(cancelledIds)));
+
+        if (newEmergencyNotifs.length > 0) {
+          const existingNotifs = JSON.parse(localStorage.getItem('hms_local_notifications') || '[]');
+          const updated = [...newEmergencyNotifs, ...existingNotifs];
+          localStorage.setItem('hms_local_notifications', JSON.stringify(updated));
+        }
+      } catch (notifErr) {
+        console.warn('Failed to process emergency patient appointment cancellations:', notifErr);
+      }
+
+      if (affectedCount > 0) {
+        toast.success(`Doctor emergency declared! Rejection prompt message sent to ${affectedCount} pending patient(s).`);
+      } else {
+        toast.success(`Doctor status updated to EMERGENCY successfully!`);
+      }
+
       setEmergencyDoctorId(null);
       setEmergencyReason('');
       fetchMetadataAndAvailabilities();
+      window.dispatchEvent(new CustomEvent('hms_notification_trigger'));
       window.dispatchEvent(new Event('hms_dashboard_refresh'));
     } catch (err) {
       console.error(err);

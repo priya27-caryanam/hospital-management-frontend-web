@@ -16,7 +16,7 @@
  *   - Consultation / Pharmacy / Laboratory Payments -> Patient
  */
 import { useState, useEffect, useCallback } from 'react';
-import { Bell, CheckCheck, X, Check, Trash2, Clock, RefreshCw } from 'lucide-react';
+import { Bell, CheckCheck, X, Check, Trash2, Clock, RefreshCw, ShieldAlert } from 'lucide-react';
 import toast from 'react-hot-toast';
 import notificationApi from '../../api/notificationApi';
 
@@ -37,11 +37,14 @@ export default function HospitalNotificationsModal({ isOpen, onClose, onUpdateCo
     const localNotifs = JSON.parse(localStorage.getItem('hms_local_notifications') || '[]');
     const storedUser = JSON.parse(localStorage.getItem('hms_user') || '{}');
     const userRole = storedUser?.role || 'RECEPTIONIST';
-    const userId = storedUser?.userId || storedUser?.id;
+    const userId = storedUser?.userId || storedUser?.patientId || storedUser?.id;
 
-    const filteredLocal = localNotifs.filter(
-      (n) => n.role === userRole || (userId && String(n.patientId) === String(userId))
-    );
+    const filteredLocal = localNotifs.filter((n) => {
+      if (n.patientId != null && n.patientId !== '') {
+        return userId && String(n.patientId) === String(userId);
+      }
+      return n.role === userRole;
+    });
 
     const merged = [...filteredLocal, ...remoteList];
 
@@ -202,21 +205,31 @@ export default function HospitalNotificationsModal({ isOpen, onClose, onUpdateCo
           ) : (
             notifications.map((item) => {
               const isRead = item.read ?? item.isRead;
+              const isEmergency = item.emergency || item.title?.includes('Emergency') || item.title?.includes('Rejection');
+
               return (
                 <div
                   key={item.id}
                   className={`rounded-2xl p-4 border transition-all space-y-2 ${
-                    isRead
+                    isEmergency
+                      ? isRead
+                        ? 'bg-rose-50/40 border-rose-200 opacity-90'
+                        : 'bg-rose-50 border-rose-300 shadow-sm'
+                      : isRead
                       ? 'bg-slate-50/60 border-slate-200/60 opacity-80'
                       : 'bg-blue-50/60 border-blue-200/80 shadow-xs'
                   }`}
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex items-center gap-2">
-                      {!isRead && (
-                        <span className="h-2 w-2 rounded-full bg-blue-600 shrink-0" />
+                      {isEmergency ? (
+                        <ShieldAlert className="h-4 w-4 text-rose-600 shrink-0" />
+                      ) : (
+                        !isRead && <span className="h-2 w-2 rounded-full bg-blue-600 shrink-0" />
                       )}
-                      <h4 className="text-xs font-bold text-slate-900">{item.title || item.eventType || 'Hospital Event Alert'}</h4>
+                      <h4 className={`text-xs font-bold ${isEmergency ? 'text-rose-900' : 'text-slate-900'}`}>
+                        {item.title || item.eventType || 'Hospital Event Alert'}
+                      </h4>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                       <span className="text-[10px] text-slate-400 flex items-center gap-1">
@@ -232,12 +245,16 @@ export default function HospitalNotificationsModal({ isOpen, onClose, onUpdateCo
                       </button>
                     </div>
                   </div>
-                  <p className="text-xs text-slate-600 leading-relaxed">{item.message || item.content || 'Notification message details.'}</p>
+                  <p className={`text-xs leading-relaxed ${isEmergency ? 'text-rose-800 font-medium' : 'text-slate-600'}`}>
+                    {item.message || item.content || 'Notification message details.'}
+                  </p>
                   {!isRead && (
                     <div className="flex justify-end pt-1">
                       <button
                         onClick={() => handleMarkAsRead(item.id)}
-                        className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-700 hover:underline"
+                        className={`inline-flex items-center gap-1 text-[11px] font-semibold ${
+                          isEmergency ? 'text-rose-700 hover:underline' : 'text-blue-700 hover:underline'
+                        }`}
                       >
                         <Check className="h-3 w-3" />
                         Mark as read

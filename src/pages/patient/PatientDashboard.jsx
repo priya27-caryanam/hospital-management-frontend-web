@@ -6,8 +6,9 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { Calendar, ClipboardList, Receipt, Stethoscope, ArrowRight, TestTube, CheckCircle, HeartPulse, XCircle, Clock, FileCheck, CreditCard, Bell } from 'lucide-react';
+import { Calendar, ClipboardList, Receipt, Stethoscope, ArrowRight, TestTube, CheckCircle, HeartPulse, XCircle, Clock, FileCheck, CreditCard, Bell, ShieldAlert, AlertTriangle } from 'lucide-react';
 import dashboardApi from '../../api/dashboardApi';
+import appointmentApi from '../../api/appointmentApi';
 import StatsCard from '../../components/common/StatsCard';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 import PatientNotificationsModal from '../../components/patient/PatientNotificationsModal';
@@ -18,21 +19,75 @@ export default function PatientDashboard() {
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [emergencyRejections, setEmergencyRejections] = useState([]);
 
   useEffect(() => {
-    const fetchStats = async () => {
+    const fetchData = async () => {
       const patientId = user?.patientId || user?.userId || user?.id;
       if (!patientId) return;
       try {
-        const res = await dashboardApi.getPatientStats(patientId);
-        setStats(res.data);
+        const res = await dashboardApi.getPatientStats(patientId).catch(() => null);
+        if (res?.data) {
+          setStats(res.data);
+        }
+
+        // Fetch patient appointments & local emergency notifications
+        const apptRes = await appointmentApi.getByPatient(patientId).catch(() => ({ data: [] }));
+        const rawAppts = apptRes.data || [];
+        const localEmergencies = JSON.parse(localStorage.getItem('hms_emergency_doctors') || '[]');
+        const localCancelled = JSON.parse(localStorage.getItem('hms_cancelled_emergency_appts') || '[]');
+        const localNotifs = JSON.parse(localStorage.getItem('hms_local_notifications') || '[]');
+
+        // Filter notifications for this patient
+        const myEmergencyNotifs = localNotifs.filter(
+          (n) => (String(n.patientId) === String(patientId) || n.role === 'PATIENT') && (n.emergency || n.title?.includes('Emergency'))
+        );
+
+        const rejectedItems = [];
+
+        for (const item of rawAppts) {
+          const id = item.id || item.appointmentId;
+          const isDocInEmergency = localEmergencies.map((x) => String(x)).includes(String(item.doctorId));
+          const isApptCancelled = localCancelled.map((x) => String(x)).includes(String(id));
+          const matchingNotif = myEmergencyNotifs.find((n) => n.message?.includes(`#${id}`));
+
+          if (isDocInEmergency || isApptCancelled || item.status === 'REJECTED' || matchingNotif) {
+            rejectedItems.push({
+              id,
+              doctorName: item.doctorName || (item.doctorFirstName ? `Dr. ${item.doctorFirstName} ${item.doctorLastName || ''}` : 'Specialist Practitioner'),
+              appointmentDate: item.appointmentDate || item.date,
+              reason: matchingNotif?.rejectionReason || matchingNotif?.message || item.reason || 'Consultation cancelled due to Doctor Emergency.',
+            });
+          }
+        }
+
+        // If no appts in API match, but local emergency notifications exist for this patient
+        if (rejectedItems.length === 0 && myEmergencyNotifs.length > 0) {
+          myEmergencyNotifs.forEach((n) => {
+            rejectedItems.push({
+              id: n.id,
+              doctorName: 'Specialist Practitioner',
+              reason: n.rejectionReason || n.message || 'Consultation cancelled due to Doctor Emergency.',
+            });
+          });
+        }
+
+        setEmergencyRejections(rejectedItems);
       } catch (err) {
         console.error('Failed to load patient dashboard stats:', err);
       } finally {
         setLoading(false);
       }
     };
-    fetchStats();
+    fetchData();
+
+    const handleRefresh = () => fetchData();
+    window.addEventListener('hms_notification_trigger', handleRefresh);
+    window.addEventListener('hms_dashboard_refresh', handleRefresh);
+    return () => {
+      window.removeEventListener('hms_notification_trigger', handleRefresh);
+      window.removeEventListener('hms_dashboard_refresh', handleRefresh);
+    };
   }, [user]);
 
   const cards = [
@@ -107,6 +162,68 @@ export default function PatientDashboard() {
         isOpen={showNotifications}
         onClose={() => setShowNotifications(false)}
       />
+
+      {/* ── BIG EMERGENCY REJECTION ALERT BANNER FOR PATIENT ── */}
+      {emergencyRejections.length > 0 && (
+        <div className="rounded-3xl border-2 border-rose-500 bg-gradient-to-r from-rose-500/10 via-red-500/5 to-rose-500/10 p-6 shadow-xl relative overflow-hidden animate-fade-in space-y-4">
+          <div className="flex items-start gap-4">
+            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-rose-600 text-white shadow-lg shrink-0 animate-pulse">
+              <ShieldAlert className="h-8 w-8" />
+            </div>
+            <div className="space-y-1 flex-1">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="rounded-full bg-rose-600 px-3 py-0.5 text-xs font-black text-white uppercase tracking-wider shadow-xs">
+                  🚨 URGENT NOTICE
+                </span>
+                <span className="text-xs font-bold text-rose-700">
+                  {emergencyRejections.length} Consultation Request{emergencyRejections.length > 1 ? 's' : ''} Rejected
+                </span>
+              </div>
+              <h2 className="text-xl font-black text-rose-950 tracking-tight">
+                Appointment Rejected Due to Doctor Emergency
+              </h2>
+              <p className="text-xs font-medium text-rose-800 leading-relaxed">
+                Your consultation booking could not proceed as your physician was called for an emergency procedure. Rejection prompt details:
+              </p>
+            </div>
+          </div>
+
+          {/* List of Rejections */}
+          <div className="space-y-2.5 pt-1">
+            {emergencyRejections.map((item, idx) => (
+              <div key={idx} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-2xl bg-white/95 p-4 border border-rose-200 shadow-sm">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-xs font-bold text-rose-600 bg-rose-50 px-2 py-0.5 rounded-md border border-rose-200">
+                      Appt #{item.id}
+                    </span>
+                    <span className="text-sm font-bold text-slate-800">{item.doctorName}</span>
+                  </div>
+                  <p className="text-xs text-rose-900 font-medium">
+                    "{item.reason}"
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    onClick={() => setShowNotifications(true)}
+                    className="inline-flex items-center justify-center gap-1 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-2 text-xs font-bold transition-all cursor-pointer"
+                  >
+                    <Bell className="h-3.5 w-3.5" />
+                    <span>View Bell Msg</span>
+                  </button>
+                  <button
+                    onClick={() => navigate('/patient/book-appointment')}
+                    className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white px-4 py-2 text-xs font-bold shadow-md transition-all shrink-0 cursor-pointer"
+                  >
+                    <span>Reschedule Now</span>
+                    <ArrowRight className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* 100% Real Stats Cards from PatientDashboardResponse (9 fields) */}
       <div>

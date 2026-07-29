@@ -5,7 +5,7 @@
  */
 import { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
-import { Eye, Receipt, Stethoscope, Pill, X } from 'lucide-react';
+import { Eye, Receipt, Stethoscope, Pill, X, AlertTriangle } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import appointmentApi from '../../api/appointmentApi';
 import billingApi from '../../api/billingApi';
@@ -171,6 +171,18 @@ export default function MyAppointments() {
         <h1 className="text-2xl font-bold text-slate-900">My Appointments</h1>
         <p className="text-sm text-slate-500">Track appointment status, clinical consultations, prescriptions, and receipts</p>
       </div>
+
+      {appointments.some((a) => a.emergencyCancelled) && (
+        <div className="rounded-2xl border border-rose-200 bg-rose-50/80 p-4 text-rose-900 shadow-sm flex items-start gap-3 animate-fade-in">
+          <AlertTriangle className="h-5 w-5 text-rose-600 shrink-0 mt-0.5" />
+          <div>
+            <h3 className="text-sm font-bold text-rose-900">🚨 Emergency Appointment Rejection Notice</h3>
+            <p className="text-xs text-rose-700 mt-0.5 leading-relaxed">
+              One or more of your consultation bookings were <strong>REJECTED</strong> due to a Doctor Emergency. Please check your notifications bell for full rejection prompt details and reschedule.
+            </p>
+          </div>
+        </div>
+      )}
 
       <DataTable
         columns={columns}
