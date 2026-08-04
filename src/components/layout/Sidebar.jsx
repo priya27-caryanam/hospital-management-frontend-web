@@ -22,10 +22,6 @@ const roleNavItems = {
     { path: '/admin/register-receptionist', label: 'Register Receptionist', icon: UserPlus },
     { path: '/admin/register-pharmacist', label: 'Register Pharmacist', icon: Pill },
     { path: '/admin/register-lab-technician', label: 'Register Lab Tech', icon: TestTube },
-    { path: '/admin/patients', label: 'Patient Search', icon: Search },
-    { path: '/admin/appointments', label: 'Appointments', icon: CalendarDays },
-    { path: '/admin/billing', label: 'Billing', icon: Receipt },
-    { path: '/admin/reports', label: 'Reports', icon: FileText },
   ],
   DOCTOR: [
     { path: '/doctor/dashboard', label: 'Dashboard', icon: LayoutDashboard },
