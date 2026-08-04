@@ -25,14 +25,14 @@ const roleNavItems = {
     { path: '/admin/patients', label: 'Patient Search', icon: Search },
     { path: '/admin/appointments', label: 'Appointments', icon: CalendarDays },
     { path: '/admin/billing', label: 'Billing', icon: Receipt },
-    { path: '/admin/symptoms', label: 'Symptoms', icon: HeartPulse },
     { path: '/admin/reports', label: 'Reports', icon: FileText },
   ],
   DOCTOR: [
     { path: '/doctor/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { path: '/doctor/profile', label: 'My Profile', icon: UserCircle },
     { path: '/doctor/appointments', label: 'My Appointments & Lab Orders', icon: CalendarDays },
     { path: '/doctor/prescriptions', label: 'Add Prescription', icon: ClipboardList },
+    { path: '/doctor/my-availability', label: 'My Availability', icon: CalendarDays },
+    { path: '/doctor/profile', label: 'My Profile', icon: UserCircle },
   ],
   NURSE: [
     { path: '/nurse/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -47,7 +47,6 @@ const roleNavItems = {
     { path: '/receptionist/book-walkin', label: 'Book Walk-in Appointment', icon: CalendarDays },
     { path: '/receptionist/online-requests', label: 'Online Appointment Requests', icon: ClipboardList },
     { path: '/receptionist/billing', label: 'Billing', icon: Receipt },
-    { path: '/receptionist/symptoms', label: 'Symptoms Suggestion', icon: HeartPulse },
   ],
   PHARMACIST: [
     { path: '/pharmacist/dashboard', label: 'Dashboard', icon: LayoutDashboard },

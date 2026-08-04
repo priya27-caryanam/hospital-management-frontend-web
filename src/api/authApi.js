@@ -1,13 +1,17 @@
 /**
  * Authentication API
  * Endpoints for login and registration per OpenAPI spec
+ * Updated for single `username` field (Email or Mobile Number)
  */
 import axiosInstance from './axios';
 
 const authApi = {
-  /** POST /api/auth/login — Login to the system */
-  login: (email, password) => {
-    return axiosInstance.post('/auth/login', { email, password });
+  /**
+   * POST /api/auth/login
+   * Request payload: { username: "admin@hospital.com" | "9876543210", password: "..." }
+   */
+  login: (username, password) => {
+    return axiosInstance.post('/auth/login', { username, password });
   },
 
   /** POST /api/auth/register/doctor — Register a new doctor (ADMIN only) */

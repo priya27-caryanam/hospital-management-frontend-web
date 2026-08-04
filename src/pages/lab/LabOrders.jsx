@@ -313,11 +313,10 @@ export default function LabOrders() {
       );
 
       toast.success(`Payment for Lab Order #${paymentOrderId} submitted & marked as PAID!`);
-
-      setTimeout(() => {
-        setPaymentOrderId(null);
-        fetchOrders(activeStatus);
-      }, 1000);
+      const orderId = paymentOrderId;
+      setPaymentOrderId(null);
+      fetchOrders(activeStatus);
+      handleViewReceipt(orderId);
     } catch (err) {
       console.error(err);
       toast.error(err.response?.data?.message || 'Payment processing failed');

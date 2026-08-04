@@ -169,16 +169,8 @@ const FAQS = [
 export default function HomePage() {
   const navigate = useNavigate();
 
-  // Symptom checker preview state
-  const [selectedSymptom, setSelectedSymptom] = useState('');
+  // FAQ accordion state
   const [openFaqIndex, setOpenFaqIndex] = useState(0);
-
-  const symptomSuggestions = {
-    ChestPain: { dept: 'Cardiology', doctor: 'Dr. Marcus Vance', urgency: 'Immediate (High Priority)' },
-    Headache: { dept: 'Neurology', doctor: 'Dr. Elena Rostova', urgency: 'Standard OPD' },
-    Fever: { dept: 'Pediatrics / General', doctor: 'Dr. Sarah Jenkins', urgency: 'Urgent Care' },
-    JointPain: { dept: 'Orthopedics', doctor: 'Dr. Alan Grant', urgency: 'Standard OPD' },
-  };
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 font-sans text-slate-800 antialiased selection:bg-blue-600 selection:text-white">
@@ -239,10 +231,6 @@ export default function HomePage() {
             <a href="#hero" className="hover:text-blue-600 transition">Home</a>
             <a href="#specialties" className="hover:text-blue-600 transition">Specialties</a>
             <a href="#features" className="hover:text-blue-600 transition">Features</a>
-            <a href="#symptom-checker" className="hover:text-blue-600 transition flex items-center gap-1">
-              <span>Symptom Tool</span>
-              <span className="px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 text-[10px] font-extrabold">NEW</span>
-            </a>
             <a href="#reviews" className="hover:text-blue-600 transition">Reviews</a>
             <a href="#faq" className="hover:text-blue-600 transition">FAQ</a>
           </nav>
@@ -402,19 +390,16 @@ export default function HomePage() {
           </div>
 
           <div
-            onClick={() => {
-              const el = document.getElementById('symptom-checker');
-              el?.scrollIntoView({ behavior: 'smooth' });
-            }}
+            onClick={() => navigate('/login')}
             className="group bg-white rounded-2xl p-6 shadow-xl border border-slate-100 hover:shadow-2xl hover:-translate-y-1.5 transition-all duration-300 cursor-pointer"
           >
             <div className="h-12 w-12 rounded-xl bg-purple-100 text-purple-600 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
               <Stethoscope className="w-6 h-6" />
             </div>
-            <h3 className="text-base font-bold text-slate-800 group-hover:text-purple-600 transition-colors">Symptom Suggestions</h3>
-            <p className="text-xs text-slate-500 mt-1 leading-relaxed">Find right department and specialist recommendation.</p>
+            <h3 className="text-base font-bold text-slate-800 group-hover:text-purple-600 transition-colors">Specialist Directory</h3>
+            <p className="text-xs text-slate-500 mt-1 leading-relaxed">Find right department and expert doctor recommendations.</p>
             <div className="mt-3 flex items-center gap-1 text-xs font-semibold text-purple-600">
-              <span>Check Symptoms</span>
+              <span>View Specialists</span>
               <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
             </div>
           </div>
@@ -519,84 +504,6 @@ export default function HomePage() {
               </div>
             ))}
           </div>
-        </div>
-      </section>
-
-      {/* ─── 7. Interactive Symptom Suggestions Preview ─── */}
-      <section id="symptom-checker" className="max-w-7xl mx-auto px-6 py-24">
-        <div className="bg-gradient-to-br from-blue-900 via-indigo-950 to-slate-900 text-white rounded-3xl p-8 sm:p-12 shadow-2xl relative overflow-hidden">
-          
-          <div className="relative z-10 max-w-3xl space-y-6">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/20 text-blue-300 border border-blue-400/30 text-xs font-bold">
-              <Stethoscope className="w-3.5 h-3.5" />
-              <span>Smart Health Assistant</span>
-            </div>
-
-            <h2 className="text-3xl sm:text-4xl font-black tracking-tight">
-              Not sure which specialist to consult?
-            </h2>
-            <p className="text-slate-300 text-sm sm:text-base leading-relaxed">
-              Select your primary symptom below for an instant recommendation on the appropriate department and expert doctor.
-            </p>
-
-            {/* Symptom Selection Buttons */}
-            <div className="flex flex-wrap gap-3 pt-2">
-              {[
-                { label: 'Chest Pain / Pressure', key: 'ChestPain' },
-                { label: 'Severe Headache / Migraine', key: 'Headache' },
-                { label: 'High Fever / Cough', key: 'Fever' },
-                { label: 'Joint Pain / Fracture', key: 'JointPain' },
-              ].map((item) => (
-                <button
-                  key={item.key}
-                  onClick={() => setSelectedSymptom(item.key)}
-                  className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                    selectedSymptom === item.key
-                      ? 'bg-cyan-400 text-slate-950 shadow-lg scale-105'
-                      : 'bg-slate-800/90 text-slate-200 border border-slate-700 hover:bg-slate-700'
-                  }`}
-                >
-                  {item.label}
-                </button>
-              ))}
-            </div>
-
-            {/* Recommendation Result Card */}
-            {selectedSymptom && (
-              <div className="p-6 rounded-2xl bg-slate-800/90 border border-cyan-500/40 backdrop-blur-md animate-fade-in space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-cyan-400 uppercase tracking-widest flex items-center gap-1.5">
-                    <CheckCircle2 className="w-4 h-4 text-cyan-400" />
-                    Recommended Department
-                  </span>
-                  <span className="text-[10px] font-extrabold px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                    {symptomSuggestions[selectedSymptom].urgency}
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
-                  <div>
-                    <p className="text-xs text-slate-400">Department</p>
-                    <p className="text-lg font-extrabold text-white">{symptomSuggestions[selectedSymptom].dept}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-slate-400">Available Specialist</p>
-                    <p className="text-lg font-extrabold text-cyan-300">{symptomSuggestions[selectedSymptom].doctor}</p>
-                  </div>
-                </div>
-
-                <button
-                  onClick={() => navigate('/login')}
-                  className="w-full mt-2 py-3 bg-cyan-400 hover:bg-cyan-300 text-slate-950 rounded-xl text-xs font-extrabold transition-all cursor-pointer flex items-center justify-center gap-1.5"
-                >
-                  <span>Proceed to Book Consultation</span>
-                  <ArrowRight className="w-4 h-4" />
-                </button>
-              </div>
-            )}
-
-          </div>
-
         </div>
       </section>
 

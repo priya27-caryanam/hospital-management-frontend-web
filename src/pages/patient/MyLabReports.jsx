@@ -324,7 +324,7 @@ export default function MyLabReports() {
                     href={
                       selectedReportModal.filePath.startsWith('http')
                         ? selectedReportModal.filePath
-                        : `http://localhost:9091/${selectedReportModal.filePath.replace(/^\//, '')}`
+                        : `http://localhost:8080/${selectedReportModal.filePath.replace(/^\//, '')}`
                     }
                     target="_blank"
                     rel="noopener noreferrer"

@@ -25,10 +25,12 @@ import {
   CreditCard,
   X,
   Info,
+  Loader2,
 } from 'lucide-react';
 import patientApi from '../../api/patientApi';
 import departmentApi from '../../api/departmentApi';
-import doctorApi from '../../api/doctorApi';
+import specializationApi from '../../api/specializationApi';
+import doctorApi, { getDoctors } from '../../api/doctorApi';
 import appointmentApi from '../../api/appointmentApi';
 import receptionistApi from '../../api/receptionistApi';
 import doctorAvailabilityApi from '../../api/doctorAvailabilityApi';
@@ -71,8 +73,15 @@ export default function BookAppointment() {
   const [selectedPatient, setSelectedPatient] = useState(null);
   const [departments, setDepartments] = useState([]);
   const [selectedDeptId, setSelectedDeptId] = useState('');
+  const [loadingDepts, setLoadingDepts] = useState(false);
+
+  const [specializations, setSpecializations] = useState([]);
+  const [selectedSpecId, setSelectedSpecId] = useState('');
+  const [loadingSpecs, setLoadingSpecs] = useState(false);
+
   const [doctors, setDoctors] = useState([]);
   const [selectedDocId, setSelectedDocId] = useState('');
+  const [loadingDocs, setLoadingDocs] = useState(false);
 
   // Date & Slot Selection
   const [selectedDate, setSelectedDate] = useState('');
@@ -198,25 +207,59 @@ export default function BookAppointment() {
     }
   }, [step, departments]);
 
-  // Load doctors when department selected
+  // Load specializations when department selected
   useEffect(() => {
+    setSelectedSpecId('');
+    setSpecializations([]);
+    setSelectedDocId('');
+    setDoctors([]);
+    setAvailableSlots([]);
+
     if (selectedDeptId) {
-      const loadDocs = async () => {
+      const loadSpecs = async () => {
+        setLoadingSpecs(true);
         try {
-          const res = await doctorApi.getByDepartment(selectedDeptId);
-          setDoctors(res.data || []);
-          setSelectedDocId('');
-          setAvailableSlots([]);
+          const res = await specializationApi.getByDepartment(selectedDeptId);
+          setSpecializations(res.data || []);
         } catch (err) {
-          toast.error('Failed to load doctors for selected department');
+          console.error(err);
+          setSpecializations([]);
+        } finally {
+          setLoadingSpecs(false);
         }
       };
-      loadDocs();
-    } else {
-      setDoctors([]);
-      setAvailableSlots([]);
+      loadSpecs();
     }
   }, [selectedDeptId]);
+
+  // Load doctors when specialization selected
+  useEffect(() => {
+    setSelectedDocId('');
+    setDoctors([]);
+    setAvailableSlots([]);
+
+    if (!selectedDeptId || !selectedSpecId) {
+      return;
+    }
+
+    const fetchDoctors = async () => {
+      setLoadingDocs(true);
+      try {
+        const response = await getDoctors(selectedDeptId, selectedSpecId);
+        console.log('Doctors API Response', response.data);
+        const list = Array.isArray(response.data) ? response.data : (response.data?.data || []);
+        setDoctors(list);
+      } catch (err) {
+        console.error('Failed to load doctors:', err);
+        setDoctors([]);
+        toast.error('Unable to load doctors');
+      } finally {
+        setLoadingDocs(false);
+      }
+    };
+
+    fetchDoctors();
+  }, [selectedDeptId, selectedSpecId]);
 
   // Fetch available slots when doctor and date change: GET /api/appointments/available-slots
   useEffect(() => {
@@ -382,8 +425,16 @@ export default function BookAppointment() {
   /** Handle POST /api/appointments */
   const handleBook = async (e) => {
     e.preventDefault();
+    if (!selectedDeptId) {
+      toast.error('Department Required');
+      return;
+    }
+    if (!selectedSpecId) {
+      toast.error('Specialization Required');
+      return;
+    }
     if (!selectedDocId) {
-      toast.error('Please select a doctor');
+      toast.error('Doctor Required');
       return;
     }
     if (!appointmentDate) {
@@ -391,7 +442,7 @@ export default function BookAppointment() {
       return;
     }
     if (!symptoms.trim()) {
-      toast.error('Please enter symptoms / reason for the appointment');
+      toast.error('Symptoms Required');
       return;
     }
 
@@ -422,6 +473,7 @@ export default function BookAppointment() {
       patientId: Number(selectedPatient.id),
       doctorId: Number(selectedDocId),
       departmentId: Number(selectedDeptId),
+      specializationId: Number(selectedSpecId),
       appointmentDate: primaryApptDate,
       symptoms: symptoms.trim(),
     };
@@ -483,27 +535,13 @@ export default function BookAppointment() {
 
   // ==================== MANAGE APPOINTMENTS LOGIC ====================
 
-  // Fetch doctors list for filter via departments
+  // Fetch doctors list for filter directly via GET /api/doctors
   const fetchAllDoctors = async () => {
     try {
-      const deptRes = await departmentApi.getAll();
-      const depts = deptRes.data || [];
-      const allDocs = [];
-      for (const d of depts) {
-        try {
-          const docRes = await doctorApi.getByDepartment(d.id);
-          if (Array.isArray(docRes.data)) {
-            allDocs.push(...docRes.data);
-          }
-        } catch (e) {
-          // ignore
-        }
-      }
-      const map = new Map();
-      allDocs.forEach((doc) => map.set(doc.id, doc));
-      const uniqueDocs = Array.from(map.values());
-      setAllDoctorsList(uniqueDocs);
-      return uniqueDocs;
+      const res = await doctorApi.getAll();
+      const docs = Array.isArray(res.data) ? res.data : (res.data?.data || res.data?.content || []);
+      setAllDoctorsList(docs);
+      return docs;
     } catch (err) {
       console.error('Failed to load doctors list:', err);
       return [];
@@ -1091,9 +1129,13 @@ export default function BookAppointment() {
                 <h3 className="text-base font-bold text-slate-800">Step 2: Enter Appointment Details</h3>
 
                 <form onSubmit={handleBook} className="space-y-4">
-                  <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="grid gap-4 sm:grid-cols-3">
+                    {/* Department Dropdown */}
                     <div className="space-y-1.5">
-                      <label className="text-sm font-semibold text-slate-700">Select Department *</label>
+                      <label className="text-sm font-semibold text-slate-700 flex items-center justify-between">
+                        <span>Select Department *</span>
+                        {loadingDepts && <Loader2 className="h-3.5 w-3.5 animate-spin text-blue-600" />}
+                      </label>
                       <select
                         value={selectedDeptId}
                         onChange={(e) => setSelectedDeptId(e.target.value)}
@@ -1109,22 +1151,63 @@ export default function BookAppointment() {
                       </select>
                     </div>
 
+                    {/* Specialization Dropdown */}
                     <div className="space-y-1.5">
-                      <label className="text-sm font-semibold text-slate-700">Select Doctor *</label>
+                      <label className="text-sm font-semibold text-slate-700 flex items-center justify-between">
+                        <span>Select Specialization *</span>
+                        {loadingSpecs && <Loader2 className="h-3.5 w-3.5 animate-spin text-blue-600" />}
+                      </label>
+                      <select
+                        value={selectedSpecId}
+                        onChange={(e) => setSelectedSpecId(e.target.value)}
+                        disabled={!selectedDeptId || loadingSpecs || specializations.length === 0}
+                        required
+                        className="w-full rounded-xl border border-slate-200 p-2.5 text-sm outline-none focus:border-blue-500 disabled:bg-slate-100 disabled:text-slate-400 cursor-pointer disabled:cursor-not-allowed"
+                      >
+                        <option value="">
+                          {loadingSpecs
+                            ? 'Loading Specializations...'
+                            : !selectedDeptId
+                            ? '-- Select Specialization --'
+                            : specializations.length === 0
+                            ? 'No Specializations Available'
+                            : '-- Select Specialization --'}
+                        </option>
+                        {specializations.map((s) => (
+                          <option key={s.id} value={s.id}>
+                            {s.specializationName || s.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Doctor Dropdown */}
+                    <div className="space-y-1.5">
+                      <label className="text-sm font-semibold text-slate-700 flex items-center justify-between">
+                        <span>Select Doctor *</span>
+                        {loadingDocs && <Loader2 className="h-3.5 w-3.5 animate-spin text-blue-600" />}
+                      </label>
                       <select
                         value={selectedDocId}
                         onChange={(e) => setSelectedDocId(e.target.value)}
-                        disabled={!selectedDeptId}
+                        disabled={!selectedSpecId || loadingDocs || doctors.length === 0}
                         required
-                        className="w-full rounded-xl border border-slate-200 p-2.5 text-sm outline-none focus:border-blue-500"
+                        className="w-full rounded-xl border border-slate-200 p-2.5 text-sm outline-none focus:border-blue-500 disabled:bg-slate-100 disabled:text-slate-400 cursor-pointer disabled:cursor-not-allowed"
                       >
-                        <option value="">-- Select Doctor --</option>
+                        <option value="">
+                          {loadingDocs
+                            ? 'Loading Doctors...'
+                            : !selectedSpecId
+                            ? '-- Select Doctor --'
+                            : doctors.length === 0
+                            ? 'No Doctors Available'
+                            : '-- Select Doctor --'}
+                        </option>
                         {doctors.map((doc) => {
                           const status = getDoctorDateStatus(doc);
-                          const isAvail = status === 'AVAILABLE';
                           const spec = doc.specializationName || doc.specialization || '';
                           const specText = spec ? ` - ${spec}` : '';
-                          
+
                           let availBadge = '🟢 Available';
                           if (status === 'UNAVAILABLE') availBadge = '🔴 Not Available';
                           else if (status === 'LEAVE') availBadge = '🟡 On Leave';
@@ -1137,31 +1220,31 @@ export default function BookAppointment() {
                           );
                         })}
                       </select>
-
-                      {selectedDocId && (() => {
-                        const selDoc = doctors.find((d) => String(d.id) === String(selectedDocId));
-                        if (!selDoc) return null;
-                        const status = getDoctorDateStatus(selDoc);
-                        const isAvail = status === 'AVAILABLE';
-                        
-                        return (
-                          <div className="pt-1">
-                            {isAvail ? (
-                              <span className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-lg">
-                                <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-                                🟢 (Available) Doctor is Available for Consultation {activeDate ? `on ${activeDate}` : ''}
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center gap-1.5 text-xs font-bold text-rose-700 bg-rose-50 border border-rose-200 px-2.5 py-1 rounded-lg">
-                                <span className="h-2 w-2 rounded-full bg-rose-500" />
-                                🔴 ({status.replace('_', ' ')}) Doctor is Currently Unavailable / On Leave {activeDate ? `on ${activeDate}` : ''}
-                              </span>
-                            )}
-                          </div>
-                        );
-                      })()}
                     </div>
                   </div>
+
+                  {selectedDocId && (() => {
+                    const selDoc = doctors.find((d) => String(d.id) === String(selectedDocId));
+                    if (!selDoc) return null;
+                    const status = getDoctorDateStatus(selDoc);
+                    const isAvail = status === 'AVAILABLE';
+
+                    return (
+                      <div className="pt-1">
+                        {isAvail ? (
+                          <span className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-lg">
+                            <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                            🟢 (Available) Doctor is Available for Consultation {activeDate ? `on ${activeDate}` : ''}
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1.5 text-xs font-bold text-rose-700 bg-rose-50 border border-rose-200 px-2.5 py-1 rounded-lg">
+                            <span className="h-2 w-2 rounded-full bg-rose-500" />
+                            🔴 ({status.replace('_', ' ')}) Doctor is Currently Unavailable / On Leave {activeDate ? `on ${activeDate}` : ''}
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })()}
 
                   {/* Date & Available Slots */}
                   <div className="space-y-1.5">

@@ -11,8 +11,6 @@ import {
   Thermometer,
   HeartPulse,
   FileText,
-  CheckSquare,
-  Square,
   FlaskConical,
   PlusCircle,
   Clock,
@@ -21,7 +19,6 @@ import {
 import toast from 'react-hot-toast';
 import consultationApi from '../../api/consultationApi';
 import appointmentApi from '../../api/appointmentApi';
-import symptomsApi from '../../api/symptomsApi';
 import labTestApi from '../../api/labTestApi';
 import labOrderApi from '../../api/labOrderApi';
 
@@ -31,9 +28,6 @@ export default function CreateConsultationModal({ appointmentId, isOpen, onClose
   const [pulseRate, setPulseRate] = useState('72');
   const [diagnosis, setDiagnosis] = useState('');
   const [notes, setNotes] = useState('');
-  const [availableSymptoms, setAvailableSymptoms] = useState([]);
-  const [selectedSymptomIds, setSelectedSymptomIds] = useState([]);
-  const [loadingSymptoms, setLoadingSymptoms] = useState(false);
 
   // Lab Test ordering state
   const [orderLabTest, setOrderLabTest] = useState(false);
@@ -59,23 +53,6 @@ export default function CreateConsultationModal({ appointmentId, isOpen, onClose
     setLabPriority('NORMAL');
     setLabInstructions('');
 
-    // Fetch master symptoms list
-    const loadSymptoms = async () => {
-      setLoadingSymptoms(true);
-      try {
-        const res = await symptomsApi.getAll();
-        const list = res.data || [];
-        setAvailableSymptoms(list);
-        if (list.length > 0) {
-          setSelectedSymptomIds([list[0].id]);
-        }
-      } catch (err) {
-        console.error('Failed to load symptoms list:', err);
-      } finally {
-        setLoadingSymptoms(false);
-      }
-    };
-
     // Fetch lab tests catalog
     const loadLabTests = async () => {
       setLoadingLabTests(true);
@@ -89,26 +66,13 @@ export default function CreateConsultationModal({ appointmentId, isOpen, onClose
       }
     };
 
-    loadSymptoms();
     loadLabTests();
   }, [isOpen]);
 
   if (!isOpen) return null;
 
-  const toggleSymptom = (id) => {
-    setSelectedSymptomIds((prev) =>
-      prev.includes(id) ? prev.filter((sId) => sId !== id) : [...prev, id]
-    );
-  };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
-
-    // Validations matching backend constraints
-    if (selectedSymptomIds.length === 0) {
-      toast.error('Please select at least one symptom');
-      return;
-    }
 
     const bpRegex = /^\d{2,3}\/\d{2,3}$/;
     if (!bpRegex.test(bloodPressure.trim())) {
@@ -142,7 +106,6 @@ export default function CreateConsultationModal({ appointmentId, isOpen, onClose
     try {
       const payload = {
         appointmentId: Number(appointmentId),
-        symptomIds: selectedSymptomIds,
         bloodPressure: bloodPressure.trim(),
         temperature: tempVal,
         pulseRate: pulseVal,
@@ -214,39 +177,6 @@ export default function CreateConsultationModal({ appointmentId, isOpen, onClose
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Symptoms selection */}
-          <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">
-              Observed Symptoms <span className="text-rose-500">*</span>
-            </label>
-            {loadingSymptoms ? (
-              <p className="text-xs text-slate-400 animate-pulse">Loading symptoms master...</p>
-            ) : availableSymptoms.length === 0 ? (
-              <p className="text-xs text-amber-600">No master symptoms found. Please ensure symptoms exist in master data.</p>
-            ) : (
-              <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto p-2 border border-slate-200 rounded-xl bg-slate-50/50">
-                {availableSymptoms.map((symptom) => {
-                  const isSelected = selectedSymptomIds.includes(symptom.id);
-                  return (
-                    <button
-                      type="button"
-                      key={symptom.id}
-                      onClick={() => toggleSymptom(symptom.id)}
-                      className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold transition-all ${
-                        isSelected
-                          ? 'bg-blue-600 text-white shadow-xs'
-                          : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100'
-                      }`}
-                    >
-                      {isSelected ? <CheckSquare className="h-3.5 w-3.5" /> : <Square className="h-3.5 w-3.5 text-slate-400" />}
-                      {symptom.symptomName || symptom.name}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
           {/* Patient Vitals */}
           <div>
             <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">

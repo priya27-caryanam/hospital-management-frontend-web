@@ -72,46 +72,34 @@ export default function RegisterDoctor() {
   const [viewingDoctor, setViewingDoctor] = useState(null);
   const [loadingDetails, setLoadingDetails] = useState(false);
 
-  /** Fetch all doctors across departments using GET /api/doctors/department/{deptId} */
-  const fetchAllDoctors = async (deptList) => {
-    if (!deptList || deptList.length === 0) return;
+  /** Fetch all doctors directly using GET /api/doctors */
+  const fetchAllDoctors = async () => {
     setLoadingDoctors(true);
     try {
-      const promises = deptList.map((d) =>
-        doctorApi.getByDepartment(d.id).catch(() => ({ data: [] }))
-      );
-      const results = await Promise.all(promises);
-      const map = new Map();
-      results.forEach((res) => {
-        const list = Array.isArray(res.data) ? res.data : [];
-        list.forEach((doc) => {
-          if (doc && doc.id) {
-            map.set(doc.id, doc);
-          }
-        });
-      });
-      setDoctorsList(Array.from(map.values()));
+      const res = await doctorApi.getAll();
+      const list = Array.isArray(res.data) ? res.data : (res.data?.data || res.data?.content || []);
+      setDoctorsList(list);
     } catch (err) {
       console.error('Failed to load doctors directory:', err);
+      setDoctorsList([]);
     } finally {
       setLoadingDoctors(false);
     }
   };
 
-  /** Fetch departments and all specializations for dropdowns and directory */
+  /** Fetch departments, specializations, and doctors on mount */
   useEffect(() => {
     const fetchData = async () => {
       try {
         const [deptRes, specRes] = await Promise.all([
-          departmentApi.getAll(),
-          specializationApi.getAll(),
+          departmentApi.getAll().catch(() => ({ data: [] })),
+          specializationApi.getAll().catch(() => ({ data: [] })),
         ]);
-        const deptData = deptRes.data || [];
-        setDepartments(deptData);
+        setDepartments(deptRes.data || []);
         setSpecializations(specRes.data || []);
 
-        // Load doctor listings for all departments
-        await fetchAllDoctors(deptData);
+        // Load all doctor listings
+        await fetchAllDoctors();
       } catch (err) {
         toast.error('Failed to load department or specialization metadata');
         console.error(err);
@@ -314,9 +302,7 @@ export default function RegisterDoctor() {
       setErrors({});
 
       // Refresh doctor directory
-      if (departments.length > 0) {
-        fetchAllDoctors(departments);
-      }
+      fetchAllDoctors();
     } catch (err) {
       const errData = err.response?.data;
       if (errData?.errors && typeof errData.errors === 'object') {

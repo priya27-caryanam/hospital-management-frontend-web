@@ -151,13 +151,6 @@ export default function ReceptionistDashboard() {
       path: '/receptionist/billing',
       color: 'amber',
     },
-    {
-      icon: HeartPulse,
-      label: 'Symptoms Suggestion',
-      description: 'Suggest departments by symptoms',
-      path: '/receptionist/symptoms',
-      color: 'purple',
-    },
   ];
 
   return (

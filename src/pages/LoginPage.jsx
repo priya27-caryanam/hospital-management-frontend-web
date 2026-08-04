@@ -1,11 +1,17 @@
 /**
- * LoginPage — Authentication form
- * Uses AuthContext.login() to authenticate, then navigates
- * to the appropriate role-based dashboard.
+ * LoginPage Component — Updated for Single Username Field (Email or Mobile Number)
+ *
+ * Implements POST /api/auth/login with request schema:
+ * { "username": "admin@hospital.com" | "9876543210", "password": "..." }
+ *
+ * Error handling:
+ *   - 401: Invalid Email/Mobile Number or Password
+ *   - 403: Access Denied
+ *   - 500: Something went wrong. Please try again.
  */
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { Activity, Mail, Lock, Eye, EyeOff, ArrowLeft, LogIn } from 'lucide-react';
+import { Activity, User, Lock, Eye, EyeOff, ArrowLeft, LogIn } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
 
@@ -24,24 +30,32 @@ export default function LoginPage() {
   const navigate = useNavigate();
   const { login } = useAuth();
 
-  const [form, setForm] = useState({ email: '', password: '' });
+  const [form, setForm] = useState({ username: '', password: '', rememberMe: false });
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState({});
 
-  /** Basic client-side validation */
+  /** Validate Email or 10-digit Mobile Number */
   const validate = () => {
     const errs = {};
-    if (!form.email.trim()) {
-      errs.email = 'Email is required';
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
-      errs.email = 'Enter a valid email address';
+    const val = form.username.trim();
+
+    if (!val) {
+      errs.username = 'Email or Mobile Number is required';
+    } else {
+      const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val);
+      const isMobile = /^\d{10}$/.test(val);
+      if (!isEmail && !isMobile) {
+        errs.username = 'Enter a valid Email Address or 10-digit Mobile Number';
+      }
     }
+
     if (!form.password) {
       errs.password = 'Password is required';
-    } else if (form.password.length < 6) {
-      errs.password = 'Password must be at least 6 characters';
+    } else if (form.password.length < 4) {
+      errs.password = 'Password must be at least 4 characters';
     }
+
     setErrors(errs);
     return Object.keys(errs).length === 0;
   };
@@ -53,24 +67,38 @@ export default function LoginPage() {
 
     setIsLoading(true);
     try {
-      const role = await login(form.email, form.password);
-      toast.success('Login successful');
+      const role = await login(form.username.trim(), form.password);
+      toast.success('Login successful!');
       navigate(DASHBOARD_PATHS[role] || '/home', { replace: true });
     } catch (err) {
-      const message =
-        err.response?.data?.message ||
-        err.response?.data?.error ||
-        'Invalid credentials. Please try again.';
-      toast.error(message);
+      console.error('Login Error:', err);
+      const status = err.response?.status;
+      if (status === 401) {
+        toast.error('Invalid Email/Mobile Number or Password');
+      } else if (status === 403) {
+        toast.error('Access Denied');
+      } else if (status === 500) {
+        toast.error('Something went wrong. Please try again.');
+      } else {
+        const message =
+          err.response?.data?.message ||
+          err.response?.data?.error ||
+          (typeof err.response?.data === 'string' ? err.response.data : '') ||
+          'Invalid credentials. Please try again.';
+        toast.error(message);
+      }
     } finally {
       setIsLoading(false);
     }
   };
 
-  /** Update a single form field */
+  /** Update form fields */
   const handleChange = (e) => {
-    const { name, value } = e.target;
-    setForm((prev) => ({ ...prev, [name]: value }));
+    const { name, value, type, checked } = e.target;
+    setForm((prev) => ({
+      ...prev,
+      [name]: type === 'checkbox' ? checked : value,
+    }));
     if (errors[name]) setErrors((prev) => ({ ...prev, [name]: '' }));
   };
 
@@ -89,29 +117,33 @@ export default function LoginPage() {
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="px-8 py-8 space-y-5">
-          {/* Email */}
+          {/* Email or Mobile Number */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">Email Address</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">
+              Email or Mobile Number <span className="text-red-500">*</span>
+            </label>
             <div className="relative">
-              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+              <User className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
               <input
-                type="email"
-                name="email"
-                value={form.email}
+                type="text"
+                name="username"
+                value={form.username}
                 onChange={handleChange}
-                placeholder="you@example.com"
+                placeholder="Enter Email or Mobile Number"
                 autoComplete="username"
                 className={`w-full !pl-10 !pr-4 py-2.5 rounded-xl border text-sm outline-none transition
-                  ${errors.email ? 'border-red-400 focus:ring-red-200' : 'border-gray-200 focus:border-blue-500 focus:ring-blue-200'}
+                  ${errors.username ? 'border-red-400 focus:ring-red-200' : 'border-gray-200 focus:border-blue-500 focus:ring-blue-200'}
                   focus:ring-2`}
               />
             </div>
-            {errors.email && <p className="mt-1 text-xs text-red-500">{errors.email}</p>}
+            {errors.username && <p className="mt-1 text-xs text-red-500">{errors.username}</p>}
           </div>
 
           {/* Password */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">Password</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">
+              Password <span className="text-red-500">*</span>
+            </label>
             <div className="relative">
               <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
               <input
@@ -119,7 +151,7 @@ export default function LoginPage() {
                 name="password"
                 value={form.password}
                 onChange={handleChange}
-                placeholder="••••••••"
+                placeholder="Enter Password"
                 autoComplete="current-password"
                 className={`w-full !pl-10 !pr-11 py-2.5 rounded-xl border text-sm outline-none transition
                   ${errors.password ? 'border-red-400 focus:ring-red-200' : 'border-gray-200 focus:border-blue-500 focus:ring-blue-200'}
@@ -135,6 +167,23 @@ export default function LoginPage() {
               </button>
             </div>
             {errors.password && <p className="mt-1 text-xs text-red-500">{errors.password}</p>}
+          </div>
+
+          {/* Remember Me & Forgot Password */}
+          <div className="flex items-center justify-between text-xs">
+            <label className="flex items-center gap-2 cursor-pointer text-gray-600">
+              <input
+                type="checkbox"
+                name="rememberMe"
+                checked={form.rememberMe}
+                onChange={handleChange}
+                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 h-4 w-4"
+              />
+              <span>Remember Me</span>
+            </label>
+            <Link to="/home" className="text-blue-600 font-semibold hover:underline">
+              Forgot Password?
+            </Link>
           </div>
 
           {/* Submit */}

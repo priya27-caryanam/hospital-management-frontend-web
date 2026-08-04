@@ -1,23 +1,23 @@
 /**
  * Department API
- * CRUD operations for hospital departments
+ * CRUD operations and Excel import for hospital departments
  */
 import axiosInstance from './axios';
 
 const departmentApi = {
-  /** POST /api/departments — Add a new Department (ADMIN only) */
-  create: (data) => {
-    return axiosInstance.post('/departments', data);
-  },
-
-  /** GET /api/departments — View all Departments (Any authenticated user) */
+  /** GET /api/departments — View all Departments */
   getAll: () => {
     return axiosInstance.get('/departments');
   },
 
-  /** GET /api/departments/{id} — View Department by ID (Any authenticated user) */
+  /** GET /api/departments/{id} — View Department by ID */
   getById: (id) => {
     return axiosInstance.get(`/departments/${id}`);
+  },
+
+  /** POST /api/departments — Add a new Department (ADMIN only) */
+  create: (data) => {
+    return axiosInstance.post('/departments', data);
   },
 
   /** PUT /api/departments/{id} — Update an existing Department (ADMIN only) */
@@ -28,6 +28,17 @@ const departmentApi = {
   /** DELETE /api/departments/{id} — Delete an existing Department (ADMIN only) */
   remove: (id) => {
     return axiosInstance.delete(`/departments/${id}`);
+  },
+
+  /** POST /api/departments/import — Bulk Import Departments via Excel file */
+  importExcel: (file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return axiosInstance.post('/departments/import', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
   },
 };
 

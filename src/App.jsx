@@ -24,7 +24,6 @@ import RegisterLabTechnician from './pages/admin/RegisterLabTechnician';
 import AdminPatientSearch from './pages/admin/PatientSearch';
 import AdminAppointments from './pages/admin/Appointments';
 import AdminBilling from './pages/admin/Billing';
-import AdminSymptoms from './pages/admin/Symptoms';
 import Reports from './pages/admin/Reports';
 
 // Doctor pages
@@ -32,6 +31,7 @@ import DoctorDashboard from './pages/doctor/DoctorDashboard';
 import DoctorProfile from './pages/doctor/DoctorProfile';
 import DoctorAppointments from './pages/doctor/MyAppointments';
 import AddPrescription from './pages/doctor/AddPrescription';
+import MyAvailability from './pages/doctor/MyAvailability';
 
 // Nurse pages
 import NurseDashboard from './pages/nurse/NurseDashboard';
@@ -47,7 +47,6 @@ import BookWalkInAppointment from './pages/receptionist/BookWalkInAppointment';
 import OnlineAppointmentRequests from './pages/receptionist/OnlineAppointmentRequests';
 import ReceptionistBookAppointment from './pages/receptionist/BookAppointment';
 import ReceptionistBilling from './pages/receptionist/Billing';
-import SymptomsSuggestion from './pages/receptionist/SymptomsSuggestion';
 
 // Pharmacist pages
 import PharmacistDashboard from './pages/pharmacist/PharmacistDashboard';
@@ -69,7 +68,6 @@ import Prescriptions from './pages/patient/Prescriptions';
 import MyLabTests from './pages/patient/MyLabTests';
 import MyLabReports from './pages/patient/MyLabReports';
 import MyBills from './pages/patient/MyBills';
-import PatientSymptomChecker from './pages/patient/PatientSymptomChecker';
 
 export default function App() {
   return (
@@ -102,7 +100,6 @@ export default function App() {
         <Route path="appointments" element={<AdminAppointments />} />
         <Route path="billing" element={<AdminBilling />} />
         <Route path="medicines" element={<ManageMedicines />} />
-        <Route path="symptoms" element={<AdminSymptoms />} />
         <Route path="reports" element={<Reports />} />
       </Route>
 
@@ -120,6 +117,7 @@ export default function App() {
         <Route path="profile" element={<DoctorProfile />} />
         <Route path="appointments" element={<DoctorAppointments />} />
         <Route path="prescriptions" element={<AddPrescription />} />
+        <Route path="my-availability" element={<MyAvailability />} />
       </Route>
 
       {/* ============= NURSE ROUTES ============= */}
@@ -155,7 +153,6 @@ export default function App() {
         <Route path="online-requests" element={<OnlineAppointmentRequests />} />
         <Route path="appointments" element={<ReceptionistBookAppointment />} />
         <Route path="billing" element={<ReceptionistBilling />} />
-        <Route path="symptoms" element={<SymptomsSuggestion />} />
       </Route>
 
       {/* ============= PHARMACIST ROUTES ============= */}
@@ -207,7 +204,6 @@ export default function App() {
         <Route path="lab-tests" element={<MyLabTests />} />
         <Route path="lab-reports" element={<MyLabReports />} />
         <Route path="bills" element={<MyBills />} />
-        <Route path="symptoms" element={<PatientSymptomChecker />} />
       </Route>
 
       {/* ============= CATCH-ALL ============= */}

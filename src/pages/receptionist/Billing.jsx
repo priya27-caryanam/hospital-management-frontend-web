@@ -16,11 +16,13 @@ import {
   CheckCircle,
   X,
   Printer,
+  Download,
   IndianRupee,
   User,
   Stethoscope,
   RefreshCw,
   ListFilter,
+  HeartPulse,
 } from 'lucide-react';
 import receptionistApi from '../../api/receptionistApi';
 import appointmentApi from '../../api/appointmentApi';
@@ -322,6 +324,38 @@ export default function Billing() {
 
   const formatDate = (dateStr) =>
     dateStr ? new Date(dateStr).toLocaleString('en-IN') : 'N/A';
+
+  const handlePrint = () => {
+    window.print();
+  };
+
+  const handleDownloadPDF = (rcpt) => {
+    if (!rcpt) return;
+    const content = `
+HOSPITAL MANAGEMENT SYSTEM
+-----------------------------------
+Official Payment Receipt
+Receipt Number: ${rcpt.receiptNumber || 'N/A'}
+Transaction ID: ${rcpt.transactionId || 'N/A'}
+Patient Name: ${apptDetails?.patientName || 'N/A'}
+Doctor Name: ${apptDetails?.doctorName || 'N/A'}
+Payment Type: ${rcpt.paymentType || 'CONSULTATION'}
+Payment Mode: ${rcpt.paymentMode || 'CASH'}
+Payment Date: ${formatDate(rcpt.paymentDate)}
+Amount: ₹${rcpt.amount != null ? rcpt.amount : 500}
+Payment Status: PAID
+-----------------------------------
+This is a verified computer-generated receipt.
+`;
+    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `Receipt_${rcpt.receiptNumber || 'Consultation'}.txt`;
+    link.click();
+    URL.revokeObjectURL(url);
+    toast.success('Receipt details downloaded.');
+  };
 
   /** Table columns definition */
   const columns = [
@@ -628,49 +662,104 @@ export default function Billing() {
         </div>
       )}
 
-      {/* ── Receipt Modal ── */}
+      {/* ── Premium Printable Receipt Modal ── */}
       {showReceiptModal && receipt && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm px-4">
-          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl space-y-5 animate-fade-in">
-            <div className="flex items-center justify-between">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm px-4 py-6 overflow-y-auto">
+          <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl space-y-6 animate-scale-in relative border border-slate-100">
+            {/* Top Accent Line */}
+            <div className="absolute top-0 left-0 right-0 h-1.5 rounded-t-3xl bg-gradient-to-r from-blue-500 to-indigo-600" />
+
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3 print:hidden">
               <div className="flex items-center gap-2">
                 <Receipt className="h-5 w-5 text-blue-600" />
-                <h3 className="text-base font-bold text-slate-900">Payment Receipt</h3>
+                <h3 className="text-sm font-extrabold text-slate-900">Official Payment Receipt</h3>
               </div>
               <button
                 onClick={() => setShowReceiptModal(false)}
-                className="rounded-full p-1 hover:bg-slate-100 text-slate-500 transition-colors cursor-pointer"
+                className="rounded-full p-1 hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-all cursor-pointer"
               >
-                <X className="h-4 w-4" />
+                <X className="h-5 w-5" />
               </button>
             </div>
 
-            <div className="rounded-xl border border-slate-100 bg-slate-50 divide-y divide-slate-100 text-sm">
-              {[
-                ['Appointment ID', `#${selectedApptId}`],
-                ...(apptDetails?.patientName ? [['Patient Name', apptDetails.patientName]] : []),
-                ...(apptDetails?.doctorName ? [['Doctor Name', apptDetails.doctorName]] : []),
-                ...(paymentResult?.paymentId != null ? [['Payment ID', `#${paymentResult.paymentId}`]] : []),
-                ['Receipt Number', receipt.receiptNumber],
-                ['Transaction ID', receipt.transactionId],
-                ['Amount', receipt.amount != null ? `₹${Number(receipt.amount).toLocaleString('en-IN')}` : '₹500'],
-                ['Payment Mode', PAYMENT_MODE_LABELS[receipt.paymentMode] || receipt.paymentMode],
-                ['Payment Type', receipt.paymentType || 'CONSULTATION'],
-                ['Status', 'PAID'],
-                ['Date', formatDate(receipt.paymentDate)],
-              ].map(([label, value]) => (
-                <div key={label} className="flex items-center justify-between px-4 py-2.5">
-                  <span className="text-slate-500 font-medium">{label}</span>
-                  <span className="font-bold text-slate-800">{value || '—'}</span>
+            {/* Printable Area */}
+            <div className="space-y-4 p-5 rounded-2xl border border-slate-200/80 bg-white text-left text-xs shadow-xs relative">
+              <div className="border-b border-slate-150 pb-3.5 flex items-center justify-between">
+                <div>
+                  <h2 className="text-base font-black tracking-wide text-blue-600 font-sans">HMS HOSPITAL</h2>
+                  <p className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">Official Medical Billing</p>
                 </div>
-              ))}
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
+                  <HeartPulse className="h-6 w-6" />
+                </div>
+              </div>
+
+              <div className="space-y-2.5 font-medium divide-y divide-slate-100">
+                <div className="flex justify-between pt-1">
+                  <span className="text-slate-500">Receipt No:</span>
+                  <span className="font-extrabold text-slate-800">{receipt.receiptNumber || `REC-CON-00${selectedApptId}`}</span>
+                </div>
+                <div className="flex justify-between pt-2">
+                  <span className="text-slate-500">Transaction ID:</span>
+                  <span className="font-mono font-bold text-slate-800">{receipt.transactionId || '—'}</span>
+                </div>
+                <div className="flex justify-between pt-2">
+                  <span className="text-slate-500">Patient Name:</span>
+                  <span className="font-bold text-slate-800">{apptDetails?.patientName || '—'}</span>
+                </div>
+                <div className="flex justify-between pt-2">
+                  <span className="text-slate-500">Physician / Doctor:</span>
+                  <span className="font-bold text-slate-800">{apptDetails?.doctorName || '—'}</span>
+                </div>
+                <div className="flex justify-between pt-2">
+                  <span className="text-slate-500">Payment Type:</span>
+                  <span className="font-bold text-slate-800">{receipt.paymentType || 'CONSULTATION'}</span>
+                </div>
+                <div className="flex justify-between pt-2">
+                  <span className="text-slate-500">Payment Mode:</span>
+                  <span className="font-bold text-slate-800">{PAYMENT_MODE_LABELS[receipt.paymentMode] || receipt.paymentMode || 'CASH'}</span>
+                </div>
+                <div className="flex justify-between pt-2">
+                  <span className="text-slate-500">Status:</span>
+                  <span className="font-bold text-emerald-600">PAID</span>
+                </div>
+                <div className="flex justify-between pt-2">
+                  <span className="text-slate-500">Payment Date:</span>
+                  <span className="font-bold text-slate-800">{formatDate(receipt.paymentDate)}</span>
+                </div>
+                <div className="flex justify-between pt-3 text-sm font-black text-slate-900 border-t border-slate-200">
+                  <span>Total Amount Paid:</span>
+                  <span className="text-emerald-600">₹{receipt.amount != null ? Number(receipt.amount).toLocaleString('en-IN') : '500'}</span>
+                </div>
+              </div>
+
+              <div className="text-center pt-3 text-[10px] text-slate-400 font-semibold tracking-wide">
+                This is a computer-verified payment statement.
+              </div>
             </div>
 
+            {/* Actions */}
+            <div className="flex items-center gap-3 pt-1 print:hidden">
+              <button
+                onClick={() => handleDownloadPDF(receipt)}
+                className="flex-1 flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 py-2.5 text-xs font-bold transition-all cursor-pointer"
+              >
+                <Download className="h-4 w-4" />
+                <span>Download PDF</span>
+              </button>
+              <button
+                onClick={handlePrint}
+                className="flex-1 flex items-center justify-center gap-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white py-2.5 text-xs font-bold transition-all shadow-sm hover:scale-[1.01] active:scale-[0.99] cursor-pointer"
+              >
+                <Printer className="h-4 w-4" />
+                <span>Print Receipt</span>
+              </button>
+            </div>
             <button
               onClick={() => setShowReceiptModal(false)}
-              className="w-full rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold py-2.5 transition-colors cursor-pointer"
+              className="w-full rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-500 text-xs font-bold py-2.5 transition-colors print:hidden cursor-pointer"
             >
-              Close
+              Close Window
             </button>
           </div>
         </div>

@@ -164,16 +164,17 @@ export default function PendingPrescriptions() {
     }
   };
 
-  /** Process Payment via POST /api/pharmacy/payment/{prescriptionId} */
   const handleProcessPayment = async (e) => {
     e.preventDefault();
-    if (!paymentRxId) return;
+    const rxId = paymentRxId;
+    if (!rxId) return;
 
     setProcessingPayment(true);
     try {
-      const res = await pharmacyApi.payment(paymentRxId, paymentMode);
-      setPaymentResult(res.data);
+      await pharmacyApi.payment(rxId, paymentMode);
       toast.success('Pharmacy payment processed successfully');
+      setPaymentRxId(null);
+      handleViewReceipt(rxId);
     } catch (err) {
       console.error(err);
       toast.error(err.response?.data?.message || 'Pharmacy payment processing failed');
@@ -182,7 +183,6 @@ export default function PendingPrescriptions() {
     }
   };
 
-  /** Fetch Receipt via GET /api/pharmacy/receipt/{prescriptionId} */
   const handleViewReceipt = async (rxId) => {
     setReceiptRxId(rxId);
     setLoadingReceipt(true);

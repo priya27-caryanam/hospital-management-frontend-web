@@ -66,7 +66,7 @@ export default function DoctorDashboard() {
   }, [user.userId]);
 
   useEffect(() => {
-    const docId = doctor?.id || user?.userId;
+    const docId = doctor?.id || user.userId;
     if (docId) {
       const localEmergencies = JSON.parse(localStorage.getItem('hms_emergency_doctors') || '[]');
       if (localEmergencies.map((x) => String(x)).includes(String(docId))) {
@@ -77,7 +77,7 @@ export default function DoctorDashboard() {
 
   /** Handle Doctor Emergency Status Activation */
   const handleConfirmEmergency = async () => {
-    const doctorId = doctor?.id || user?.userId;
+    const doctorId = doctor?.id || user.userId;
     if (!doctorId || submittingEmergency) return;
     setSubmittingEmergency(true);
     try {
@@ -218,7 +218,7 @@ export default function DoctorDashboard() {
       icon: Clock,
       label: 'Manage Availability',
       description: 'Set OPD hours & slot capacity for patient booking',
-      path: '/receptionist/doctor-availability',
+      path: '/doctor/my-availability',
     },
   ];
 
@@ -375,26 +375,29 @@ export default function DoctorDashboard() {
       {showEmergencyModal && (
         <div
           onClick={() => setShowEmergencyModal(false)}
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fade-in cursor-pointer"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-md transition-all duration-300 ease-out cursor-pointer"
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="relative w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl border border-rose-100 cursor-default space-y-5"
+            className="relative w-full max-w-md rounded-3xl bg-white p-6 shadow-[0_24px_60px_-15px_rgba(244,63,94,0.18)] border border-rose-100 cursor-default space-y-6 animate-scale-in overflow-hidden"
           >
+            {/* Top Accent Gradient Line */}
+            <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-red-500 via-rose-500 to-amber-500 rounded-t-3xl" />
+
             {/* Header */}
-            <div className="flex items-start justify-between">
-              <div className="flex items-center gap-3">
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-rose-100 text-rose-600 shrink-0">
-                  <AlertTriangle className="h-6 w-6" />
+            <div className="flex items-start justify-between pt-1">
+              <div className="flex items-center gap-3.5">
+                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-rose-50 border border-rose-100 text-rose-600 shrink-0 shadow-xs shadow-rose-100 animate-pulse-soft">
+                  <AlertTriangle className="h-7 w-7" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-bold text-slate-900">Activate Emergency Mode</h3>
-                  <p className="text-xs text-rose-600 font-semibold">Doctor Availability Alert</p>
+                  <h3 className="text-xl font-extrabold text-slate-900 tracking-tight">Activate Emergency</h3>
+                  <p className="text-[11px] text-rose-600 font-bold uppercase tracking-wider">Doctor Availability Alert</p>
                 </div>
               </div>
               <button
                 onClick={() => setShowEmergencyModal(false)}
-                className="rounded-xl p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition-colors cursor-pointer"
+                className="rounded-xl p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition-all hover:scale-105 active:scale-95 cursor-pointer"
                 title="Cancel"
               >
                 <X className="h-5 w-5" />
@@ -402,35 +405,66 @@ export default function DoctorDashboard() {
             </div>
 
             {/* Dialog Body */}
-            <div className="space-y-3 rounded-2xl bg-rose-50/60 border border-rose-200/80 p-4 text-slate-700 text-sm leading-relaxed">
-              <p className="font-semibold text-rose-900">
-                You are about to mark yourself as unavailable due to an emergency.
-              </p>
-              <p className="text-xs text-rose-700">
-                This action will automatically cancel/reject today's pending consultations and send a rejection prompt message to affected patients.
-              </p>
-              <div>
-                <label className="block text-xs font-bold text-rose-900 uppercase tracking-wider mb-1">
-                  Rejection Reason / Prompt Message for Patients
-                </label>
-                <textarea
-                  value={emergencyReason}
-                  onChange={(e) => setEmergencyReason(e.target.value)}
-                  placeholder="Enter rejection reason to notify pending patients..."
-                  rows={3}
-                  className="w-full rounded-xl border border-rose-300 bg-white p-2.5 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-rose-500 shadow-inner"
-                />
+            <div className="space-y-4">
+              <div className="space-y-3 rounded-2xl bg-gradient-to-br from-rose-50/80 to-rose-100/30 border border-rose-100/70 p-4 text-slate-700 text-sm leading-relaxed shadow-xs">
+                <p className="font-semibold text-rose-950 flex items-start gap-2 text-[13px]">
+                  <span className="mt-1 flex h-2 w-2 shrink-0 rounded-full bg-rose-500" />
+                  You are marking yourself as unavailable due to an emergency.
+                </p>
+                <p className="text-xs text-rose-800 leading-normal font-medium bg-white/60 p-2.5 rounded-xl border border-rose-100/40">
+                  This action will automatically cancel/reject today's pending consultations and send a notification to affected patients.
+                </p>
+
+                <div className="space-y-1.5">
+                  <label className="block text-[10px] font-bold text-rose-900 uppercase tracking-widest">
+                    Patient Prompt / Rejection Reason
+                  </label>
+                  <textarea
+                    value={emergencyReason}
+                    onChange={(e) => setEmergencyReason(e.target.value)}
+                    placeholder="Enter rejection reason to notify pending patients..."
+                    rows={2.5}
+                    className="w-full rounded-2xl border border-rose-200 bg-white p-3 text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 shadow-sm transition-all resize-none font-medium"
+                  />
+                </div>
+
+                {/* Patient SMS Notification Preview */}
+                <div className="space-y-1.5 pt-1 border-t border-rose-100/60 mt-3">
+                  <span className="block text-[9px] font-bold text-slate-400 uppercase tracking-wider">
+                    Notification Preview (Affected Patients)
+                  </span>
+                  <div className="rounded-xl border border-slate-200/50 bg-white/80 p-3 shadow-xs relative overflow-hidden">
+                    <div className="absolute top-0 left-0 bottom-0 w-1 bg-rose-500" />
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-[9px] font-bold text-rose-600 flex items-center gap-1.5">
+                        <span className="relative flex h-1.5 w-1.5">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-rose-500"></span>
+                        </span>
+                        EMERGENCY CANCELLATION
+                      </span>
+                      <span className="text-[8px] text-slate-400 font-medium">Just now</span>
+                    </div>
+                    <p className="text-[10px] text-slate-600 font-medium leading-relaxed">
+                      Consultation with Dr. {doctor?.firstName ? `${doctor.firstName} ${doctor.lastName || ''}`.trim() : (user.name || 'Doctor')} is cancelled: <span className="text-slate-800 font-semibold italic">"{emergencyReason.trim() || 'Medical emergency...'}"</span>
+                    </p>
+                  </div>
+                </div>
               </div>
-              <p className="font-bold text-slate-900 pt-1">Confirm Emergency Mode & Send Rejection Prompt?</p>
+
+              <div className="flex items-center justify-center gap-2 pt-1">
+                <span className="flex h-2 w-2 rounded-full bg-rose-500 animate-ping" />
+                <p className="font-bold text-slate-800 text-xs">Confirm Emergency Mode Activation?</p>
+              </div>
             </div>
 
             {/* Modal Actions */}
-            <div className="flex items-center justify-end gap-3 pt-2">
+            <div className="flex items-center justify-end gap-3 pt-1">
               <button
                 type="button"
                 onClick={() => setShowEmergencyModal(false)}
                 disabled={submittingEmergency}
-                className="rounded-xl border border-slate-200 px-4 py-2.5 text-xs font-bold text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer disabled:opacity-50"
+                className="rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-xs font-bold text-slate-500 hover:bg-slate-50 hover:text-slate-800 hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer disabled:opacity-50"
               >
                 Cancel
               </button>
@@ -438,7 +472,7 @@ export default function DoctorDashboard() {
                 type="button"
                 onClick={handleConfirmEmergency}
                 disabled={submittingEmergency}
-                className="rounded-xl bg-rose-600 hover:bg-rose-700 text-white px-5 py-2.5 text-xs font-bold shadow-md hover:shadow-lg transition-all cursor-pointer disabled:opacity-50 flex items-center gap-2"
+                className="rounded-xl bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-700 hover:to-rose-700 text-white px-5 py-2.5 text-xs font-bold shadow-md hover:shadow-lg shadow-rose-100 hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer disabled:opacity-50 flex items-center gap-2 border border-rose-500/20"
               >
                 {submittingEmergency ? (
                   <>
@@ -458,26 +492,29 @@ export default function DoctorDashboard() {
       {showDeactivateModal && (
         <div
           onClick={() => setShowDeactivateModal(false)}
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fade-in cursor-pointer"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-md transition-all duration-300 ease-out cursor-pointer"
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="relative w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl border border-emerald-100 cursor-default space-y-5"
+            className="relative w-full max-w-md rounded-3xl bg-white p-6 shadow-[0_24px_60px_-15px_rgba(16,185,129,0.18)] border border-emerald-100 cursor-default space-y-6 animate-scale-in overflow-hidden"
           >
+            {/* Top Accent Gradient Line */}
+            <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-emerald-400 via-teal-500 to-blue-500 rounded-t-3xl" />
+
             {/* Header */}
-            <div className="flex items-start justify-between">
-              <div className="flex items-center gap-3">
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-600 shrink-0">
-                  <Stethoscope className="h-6 w-6" />
+            <div className="flex items-start justify-between pt-1">
+              <div className="flex items-center gap-3.5">
+                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-50 border border-emerald-100 text-emerald-600 shrink-0 shadow-xs shadow-emerald-100 animate-pulse-soft">
+                  <Stethoscope className="h-7 w-7" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-bold text-slate-900">Deactivate Emergency Mode</h3>
-                  <p className="text-xs text-emerald-600 font-semibold">Resume Consultations</p>
+                  <h3 className="text-xl font-extrabold text-slate-900 tracking-tight">Resume Availability</h3>
+                  <p className="text-[11px] text-emerald-600 font-bold uppercase tracking-wider">Deactivate Emergency Mode</p>
                 </div>
               </div>
               <button
                 onClick={() => setShowDeactivateModal(false)}
-                className="rounded-xl p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition-colors cursor-pointer"
+                className="rounded-xl p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition-all hover:scale-105 active:scale-95 cursor-pointer"
                 title="Cancel"
               >
                 <X className="h-5 w-5" />
@@ -485,22 +522,38 @@ export default function DoctorDashboard() {
             </div>
 
             {/* Dialog Body */}
-            <div className="space-y-3 rounded-2xl bg-emerald-50/60 border border-emerald-200/80 p-4 text-slate-700 text-sm leading-relaxed">
-              <p className="font-semibold text-emerald-900">
-                Are you ready to turn off Emergency Mode and resume normal availability?
-              </p>
-              <p className="text-xs text-slate-600">
-                This will mark your profile as available for new patient bookings and walk-ins.
-              </p>
+            <div className="space-y-4">
+              <div className="space-y-3 rounded-2xl bg-gradient-to-br from-emerald-50/80 to-emerald-100/30 border border-emerald-100/70 p-4 text-slate-700 text-sm leading-relaxed shadow-xs">
+                <p className="font-semibold text-emerald-950 flex items-start gap-2 text-[13px]">
+                  <span className="mt-1 flex h-2 w-2 shrink-0 rounded-full bg-emerald-500 animate-pulse" />
+                  Are you ready to turn off Emergency Mode and resume normal availability?
+                </p>
+                <p className="text-xs text-slate-600 leading-relaxed bg-white/60 p-3 rounded-xl border border-emerald-100/40 font-medium">
+                  This will mark your profile as available for new patient bookings, consultations, and walk-ins immediately.
+                </p>
+
+                {/* Status Switch Visual representation */}
+                <div className="flex items-center justify-center gap-4 py-2 border-t border-emerald-100/60 mt-3 pt-3">
+                  <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-rose-50 text-rose-600 border border-rose-100 text-[11px] font-bold">
+                    <span className="h-1.5 w-1.5 rounded-full bg-rose-500 animate-pulse"></span>
+                    Unavailable
+                  </div>
+                  <span className="text-slate-300 font-bold">➔</span>
+                  <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-100 text-[11px] font-bold animate-pulse-soft">
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
+                    Available
+                  </div>
+                </div>
+              </div>
             </div>
 
             {/* Modal Actions */}
-            <div className="flex items-center justify-end gap-3 pt-2">
+            <div className="flex items-center justify-end gap-3 pt-1">
               <button
                 type="button"
                 onClick={() => setShowDeactivateModal(false)}
                 disabled={submittingEmergency}
-                className="rounded-xl border border-slate-200 px-4 py-2.5 text-xs font-bold text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer disabled:opacity-50"
+                className="rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-xs font-bold text-slate-500 hover:bg-slate-50 hover:text-slate-800 hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer disabled:opacity-50"
               >
                 Cancel
               </button>
@@ -508,7 +561,7 @@ export default function DoctorDashboard() {
                 type="button"
                 onClick={handleDeactivateEmergency}
                 disabled={submittingEmergency}
-                className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 text-xs font-bold shadow-md hover:shadow-lg transition-all cursor-pointer disabled:opacity-50 flex items-center gap-2"
+                className="rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white px-5 py-2.5 text-xs font-bold shadow-md hover:shadow-lg shadow-emerald-100 hover:scale-[1.02] active:scale-[0.98] transition-all cursor-pointer disabled:opacity-50 flex items-center gap-2 border border-emerald-500/20"
               >
                 {submittingEmergency ? (
                   <>

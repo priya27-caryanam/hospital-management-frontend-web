@@ -1,28 +1,29 @@
 /**
- * Manage Departments Page
- * Full CRUD for hospital departments matching Swagger specification:
- *   - GET /api/departments — View all departments
- *   - GET /api/departments/{id} — View department details by ID
- *   - POST /api/departments — Create new department
- *   - PUT /api/departments/{id} — Update existing department
- *   - DELETE /api/departments/{id} — Delete department
- *
- * Swagger Request Schema (POST / PUT):
- *   { departmentName, description, floorNumber, status }
- *
- * Swagger Response Schema (GET / POST / PUT):
- *   { id, departmentName, description, floorNumber, status, createdAt, updatedAt }
+ * Manage Departments Page (Admin)
+ * Full CRUD & Excel Import operations matching Spring Boot Department APIs:
+ *   - GET /api/departments
+ *   - POST /api/departments
+ *   - PUT /api/departments/{id}
+ *   - DELETE /api/departments/{id}
+ *   - POST /api/departments/import
  */
 import { useState, useEffect, useMemo } from 'react';
-import { Plus, Pencil, Trash2, Building2, X, Eye, Clock, Calendar } from 'lucide-react';
+import { Plus, Pencil, Trash2, Building2, X, Eye, FileSpreadsheet, UploadCloud } from 'lucide-react';
 import toast from 'react-hot-toast';
 import departmentApi from '../../api/departmentApi';
 import DataTable from '../../components/common/DataTable';
 import SearchBar from '../../components/common/SearchBar';
 import ConfirmDialog from '../../components/common/ConfirmDialog';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
+import ExcelUploadModal from '../../components/common/ExcelUploadModal';
 
-const EMPTY_FORM = { departmentName: '', description: '', floorNumber: '', status: 'ACTIVE' };
+const EMPTY_FORM = {
+  departmentCode: '',
+  departmentName: '',
+  description: '',
+  floorNumber: '',
+  status: 'ACTIVE',
+};
 
 export default function ManageDepartments() {
   const [departments, setDepartments] = useState([]);
@@ -36,11 +37,14 @@ export default function ManageDepartments() {
   const [editingId, setEditingId] = useState(null);
   const [submitting, setSubmitting] = useState(false);
 
-  // View Details Modal state (GET /api/departments/{id})
+  // View Details Modal state
   const [viewingDept, setViewingDept] = useState(null);
   const [loadingDetails, setLoadingDetails] = useState(false);
 
-  // Delete confirmation
+  // Excel Import Modal state
+  const [showImportModal, setShowImportModal] = useState(false);
+
+  // Delete confirmation target
   const [deleteTarget, setDeleteTarget] = useState(null);
 
   /** Fetch all departments */
@@ -67,6 +71,7 @@ export default function ManageDepartments() {
     const q = searchQuery.toLowerCase();
     return departments.filter(
       (d) =>
+        d.departmentCode?.toLowerCase().includes(q) ||
         d.departmentName?.toLowerCase().includes(q) ||
         d.description?.toLowerCase().includes(q) ||
         d.status?.toLowerCase().includes(q) ||
@@ -84,16 +89,17 @@ export default function ManageDepartments() {
   /** Open modal pre-filled for editing */
   const openEditModal = (dept) => {
     setFormData({
+      departmentCode: dept.departmentCode || dept.code || '',
       departmentName: dept.departmentName || '',
       description: dept.description || '',
-      floorNumber: dept.floorNumber ?? '',
+      floorNumber: dept.floorNumber ?? dept.floor ?? '',
       status: dept.status || 'ACTIVE',
     });
     setEditingId(dept.id);
     setShowModal(true);
   };
 
-  /** Fetch and open View Details modal (GET /api/departments/{id}) */
+  /** View Department details */
   const handleViewDetails = async (id) => {
     setLoadingDetails(true);
     setViewingDept(null);
@@ -118,17 +124,31 @@ export default function ManageDepartments() {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
+    // Validations
+    if (!formData.departmentCode.trim()) {
+      toast.error('Department Code is required');
+      return;
+    }
     if (!formData.departmentName.trim()) {
-      toast.error('Department name is required');
+      toast.error('Department Name is required');
+      return;
+    }
+    if (formData.floorNumber === '' || formData.floorNumber === null || formData.floorNumber === undefined) {
+      toast.error('Floor is required');
+      return;
+    }
+    if (!formData.status) {
+      toast.error('Status is required');
       return;
     }
 
     setSubmitting(true);
     try {
       const payload = {
+        departmentCode: formData.departmentCode.trim(),
         departmentName: formData.departmentName.trim(),
         description: formData.description.trim(),
-        floorNumber: formData.floorNumber ? Number(formData.floorNumber) : 0,
+        floorNumber: Number(formData.floorNumber),
         status: formData.status || 'ACTIVE',
       };
 
@@ -143,8 +163,15 @@ export default function ManageDepartments() {
       setShowModal(false);
       fetchDepartments();
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Operation failed');
       console.error(err);
+      const status = err.response?.status;
+      const msg = err.response?.data?.message || err.response?.data || err.message;
+
+      if (status === 409) {
+        toast.error(`Duplicate Department Code or Name: ${msg}`);
+      } else {
+        toast.error(msg || 'Operation failed');
+      }
     } finally {
       setSubmitting(false);
     }
@@ -159,8 +186,8 @@ export default function ManageDepartments() {
       setDeleteTarget(null);
       fetchDepartments();
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Delete failed');
       console.error(err);
+      toast.error(err.response?.data?.message || 'Delete failed');
     }
   };
 
@@ -169,39 +196,65 @@ export default function ManageDepartments() {
     return new Date(dateStr).toLocaleString('en-IN');
   };
 
-  /** Table column definitions displaying all response fields */
+  /** Department Table Columns */
   const columns = [
-    { header: 'ID', accessor: 'id' },
-    { header: 'Department Name', accessor: 'departmentName' },
+    {
+      header: 'Department Code',
+      accessor: 'departmentCode',
+      render: (row) => (
+        <span className="font-mono font-bold text-blue-700 bg-blue-50 px-2.5 py-1 rounded-lg text-xs border border-blue-100">
+          {row.departmentCode || row.code || `DEPT-${row.id}`}
+        </span>
+      ),
+    },
+    {
+      header: 'Department Name',
+      accessor: 'departmentName',
+      render: (row) => <span className="font-bold text-slate-900">{row.departmentName}</span>,
+    },
     {
       header: 'Description',
+      accessor: 'description',
       render: (row) => (
         <span className="max-w-[200px] truncate block text-slate-600 text-xs" title={row.description}>
           {row.description || '—'}
         </span>
       ),
     },
-    { header: 'Floor', accessor: 'floorNumber' },
     {
-      header: 'Status',
+      header: 'Floor',
+      accessor: 'floorNumber',
       render: (row) => (
-        <span
-          className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-bold ${
-            row.status === 'ACTIVE'
-              ? 'bg-emerald-100 text-emerald-700'
-              : 'bg-slate-100 text-slate-600'
-          }`}
-        >
-          {row.status}
+        <span className="font-semibold text-slate-700">
+          Floor {row.floorNumber ?? row.floor ?? '—'}
         </span>
       ),
     },
     {
-      header: 'Created At',
-      render: (row) => formatDate(row.createdAt),
+      header: 'Status',
+      accessor: 'status',
+      render: (row) => (
+        <span
+          className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-bold ${
+            row.status === 'ACTIVE'
+              ? 'bg-emerald-100 text-emerald-700 border border-emerald-200'
+              : 'bg-slate-100 text-slate-600 border border-slate-200'
+          }`}
+        >
+          {row.status || 'ACTIVE'}
+        </span>
+      ),
+    },
+    {
+      header: 'Created Date',
+      accessor: 'createdAt',
+      render: (row) => (
+        <span className="text-slate-500 text-xs">{formatDate(row.createdAt)}</span>
+      ),
     },
     {
       header: 'Actions',
+      accessor: 'id',
       render: (row) => (
         <div className="flex items-center gap-1.5">
           <button
@@ -232,7 +285,7 @@ export default function ManageDepartments() {
 
   return (
     <div className="space-y-6">
-      {/* ─── Page Header ─── */}
+      {/* Page Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
@@ -240,40 +293,69 @@ export default function ManageDepartments() {
             Manage Departments
           </h1>
           <p className="mt-1 text-sm text-slate-500">
-            Create, update, and manage hospital departments
+            Create, import, update, and manage hospital departments
           </p>
         </div>
-        <button
-          onClick={openCreateModal}
-          className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-blue-700"
-        >
-          <Plus className="h-4 w-4" />
-          Add Department
-        </button>
+        <div className="flex items-center gap-3">
+          {/* Import Excel Button */}
+          <button
+            onClick={() => setShowImportModal(true)}
+            className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-emerald-700 cursor-pointer"
+          >
+            <FileSpreadsheet className="h-4 w-4" />
+            <span>Import Departments</span>
+          </button>
+
+          {/* Add Department Button */}
+          <button
+            onClick={openCreateModal}
+            className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-blue-700 cursor-pointer"
+          >
+            <Plus className="h-4 w-4" />
+            <span>Add Department</span>
+          </button>
+        </div>
       </div>
 
-      {/* ─── Search ─── */}
-      <SearchBar
-        placeholder="Search departments by name, description, floor, or status..."
-        onSearch={(val) => {
-          setSearchQuery(val);
-          setCurrentPage(1);
-        }}
-        className="max-w-md"
+      {/* Search & Data Table */}
+      <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <SearchBar
+            placeholder="Search by code, name, description, floor, or status..."
+            onSearch={(val) => {
+              setSearchQuery(val);
+              setCurrentPage(1);
+            }}
+            className="max-w-md"
+          />
+          <span className="text-xs text-slate-500 font-semibold">
+            Total Departments: {filteredDepartments.length}
+          </span>
+        </div>
+
+        <DataTable
+          columns={columns}
+          data={filteredDepartments}
+          loading={loading}
+          emptyMessage="No departments found"
+          pageSize={10}
+          currentPage={currentPage}
+          onPageChange={setCurrentPage}
+        />
+      </div>
+
+      {/* Excel Import Modal */}
+      <ExcelUploadModal
+        isOpen={showImportModal}
+        onClose={() => setShowImportModal(false)}
+        apiMethod={departmentApi.importExcel}
+        uploadUrl="/departments/import"
+        buttonText="Import Departments"
+        title="Import Departments via Excel"
+        onSuccess={fetchDepartments}
       />
 
-      {/* ─── Data Table ─── */}
-      <DataTable
-        columns={columns}
-        data={filteredDepartments}
-        loading={loading}
-        emptyMessage="No departments found"
-        pageSize={10}
-        currentPage={currentPage}
-        onPageChange={setCurrentPage}
-      />
-
-      {/* ─── View Details Modal (GET /api/departments/{id}) ─── */}
+      {/* View Details Modal */}
       {(viewingDept || loadingDetails) && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm px-4">
           <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl space-y-5 animate-fade-in">
@@ -297,9 +379,10 @@ export default function ManageDepartments() {
                 <div className="rounded-xl border border-slate-100 bg-slate-50 p-4 divide-y divide-slate-100 text-sm">
                   {[
                     ['Department ID', `#${viewingDept.id}`],
+                    ['Department Code', viewingDept.departmentCode || viewingDept.code || '—'],
                     ['Department Name', viewingDept.departmentName],
                     ['Description', viewingDept.description || '—'],
-                    ['Floor Number', viewingDept.floorNumber != null ? `#${viewingDept.floorNumber}` : '—'],
+                    ['Floor Number', viewingDept.floorNumber != null ? `Floor ${viewingDept.floorNumber}` : '—'],
                     ['Status', viewingDept.status],
                     ['Created At', formatDate(viewingDept.createdAt)],
                     ['Last Updated At', formatDate(viewingDept.updatedAt)],
@@ -313,7 +396,7 @@ export default function ManageDepartments() {
 
                 <button
                   onClick={() => setViewingDept(null)}
-                  className="w-full rounded-xl bg-slate-800 text-white font-semibold py-2.5 text-sm hover:bg-slate-900 transition-colors"
+                  className="w-full rounded-xl bg-slate-800 text-white font-semibold py-2.5 text-sm hover:bg-slate-900 transition-colors cursor-pointer"
                 >
                   Close
                 </button>
@@ -323,7 +406,7 @@ export default function ManageDepartments() {
         </div>
       )}
 
-      {/* ─── Create / Edit Modal (POST / PUT /api/departments) ─── */}
+      {/* Create / Edit Modal */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
           <div className="relative w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl space-y-4">
@@ -337,18 +420,36 @@ export default function ManageDepartments() {
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-4">
-              {/* Department Name */}
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Department Name *</label>
-                <input
-                  type="text"
-                  name="departmentName"
-                  value={formData.departmentName}
-                  onChange={handleChange}
-                  required
-                  className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100"
-                  placeholder="e.g. Cardiology"
-                />
+              {/* Department Code & Name */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">
+                    Department Code <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    name="departmentCode"
+                    value={formData.departmentCode}
+                    onChange={handleChange}
+                    required
+                    className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                    placeholder="e.g. CARD"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">
+                    Department Name <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    name="departmentName"
+                    value={formData.departmentName}
+                    onChange={handleChange}
+                    required
+                    className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                    placeholder="e.g. Cardiology"
+                  />
+                </div>
               </div>
 
               {/* Description */}
@@ -367,33 +468,38 @@ export default function ManageDepartments() {
               {/* Floor Number & Status */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Floor Number</label>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">
+                    Floor <span className="text-rose-500">*</span>
+                  </label>
                   <input
                     type="number"
                     name="floorNumber"
                     value={formData.floorNumber}
                     onChange={handleChange}
+                    required
                     min={0}
                     className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100"
                     placeholder="e.g. 2"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Status</label>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">
+                    Status <span className="text-rose-500">*</span>
+                  </label>
                   <select
                     name="status"
                     value={formData.status}
                     onChange={handleChange}
+                    required
                     className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100"
                   >
                     <option value="ACTIVE">ACTIVE</option>
                     <option value="INACTIVE">INACTIVE</option>
-                    <option value="BLOCKED">BLOCKED</option>
                   </select>
                 </div>
               </div>
 
-              {/* Actions */}
+              {/* Submit Buttons */}
               <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
                 <button
                   type="button"
@@ -405,7 +511,7 @@ export default function ManageDepartments() {
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="rounded-xl bg-blue-600 px-6 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                  className="rounded-xl bg-blue-600 px-6 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 disabled:opacity-50 transition-colors cursor-pointer"
                 >
                   {submitting ? 'Saving...' : editingId ? 'Update' : 'Create'}
                 </button>
@@ -415,7 +521,7 @@ export default function ManageDepartments() {
         </div>
       )}
 
-      {/* ─── Delete Confirmation ─── */}
+      {/* Delete Confirmation */}
       <ConfirmDialog
         isOpen={!!deleteTarget}
         title="Delete Department"

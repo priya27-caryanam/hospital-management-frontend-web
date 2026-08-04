@@ -11,9 +11,11 @@ import {
 } from 'lucide-react';
 import patientApi from '../../api/patientApi';
 import departmentApi from '../../api/departmentApi';
-import doctorApi from '../../api/doctorApi';
+import specializationApi from '../../api/specializationApi';
+import doctorApi, { getDoctors } from '../../api/doctorApi';
 import appointmentApi from '../../api/appointmentApi';
 import doctorAvailabilityApi from '../../api/doctorAvailabilityApi';
+import { Loader2 } from 'lucide-react';
 
 const DEFAULT_SLOTS = [
   '10:00 am', '10:20 am', '10:40 am',
@@ -37,8 +39,15 @@ export default function BookWalkInAppointment() {
   const [selectedPatient, setSelectedPatient] = useState(null);
   const [departments, setDepartments] = useState([]);
   const [selectedDeptId, setSelectedDeptId] = useState('');
+  const [loadingDepts, setLoadingDepts] = useState(false);
+
+  const [specializations, setSpecializations] = useState([]);
+  const [selectedSpecId, setSelectedSpecId] = useState('');
+  const [loadingSpecs, setLoadingSpecs] = useState(false);
+
   const [doctors, setDoctors] = useState([]);
   const [selectedDocId, setSelectedDocId] = useState('');
+  const [loadingDocs, setLoadingDocs] = useState(false);
 
   // Date & Slot Selection
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
@@ -97,39 +106,70 @@ export default function BookWalkInAppointment() {
   // Load departments
   useEffect(() => {
     const loadDepts = async () => {
+      setLoadingDepts(true);
       try {
         const res = await departmentApi.getAll();
         setDepartments(res.data || []);
       } catch (err) {
         toast.error('Failed to load departments');
+      } finally {
+        setLoadingDepts(false);
       }
     };
     loadDepts();
   }, []);
 
-  // Fetch doctors when department changes
+  // Load specializations when department changes
   useEffect(() => {
+    setSelectedSpecId('');
+    setSpecializations([]);
+    setSelectedDocId('');
+    setDoctors([]);
+
     if (selectedDeptId) {
-      const loadDocs = async () => {
+      const loadSpecs = async () => {
+        setLoadingSpecs(true);
         try {
-          const res = await doctorApi.getByDepartment(selectedDeptId);
-          const docList = res.data || [];
-          setDoctors(docList);
-          if (docList.length > 0) {
-            setSelectedDocId(docList[0].id);
-          } else {
-            setSelectedDocId('');
-          }
+          const res = await specializationApi.getByDepartment(selectedDeptId);
+          setSpecializations(res.data || []);
         } catch (err) {
-          toast.error('Failed to load doctors');
+          console.error(err);
+          setSpecializations([]);
+        } finally {
+          setLoadingSpecs(false);
         }
       };
-      loadDocs();
-    } else {
-      setDoctors([]);
-      setSelectedDocId('');
+      loadSpecs();
     }
   }, [selectedDeptId]);
+
+  // Load doctors when specialization changes
+  useEffect(() => {
+    setSelectedDocId('');
+    setDoctors([]);
+
+    if (!selectedDeptId || !selectedSpecId) {
+      return;
+    }
+
+    const fetchDoctors = async () => {
+      setLoadingDocs(true);
+      try {
+        const response = await getDoctors(selectedDeptId, selectedSpecId);
+        console.log('Doctors API Response', response.data);
+        const docList = Array.isArray(response.data) ? response.data : (response.data?.data || []);
+        setDoctors(docList);
+      } catch (err) {
+        console.error('Failed to load doctors:', err);
+        setDoctors([]);
+        toast.error('Unable to load doctors');
+      } finally {
+        setLoadingDocs(false);
+      }
+    };
+
+    fetchDoctors();
+  }, [selectedDeptId, selectedSpecId]);
 
   // Fetch available slots with default fallback
   useEffect(() => {
@@ -266,8 +306,24 @@ export default function BookWalkInAppointment() {
 
   const handleBook = async (e) => {
     e.preventDefault();
-    if (!selectedPatient || !selectedDeptId || !selectedDocId || !symptoms.trim()) {
-      toast.error('Please complete all required appointment fields');
+    if (!selectedDeptId) {
+      toast.error('Department Required');
+      return;
+    }
+    if (!selectedSpecId) {
+      toast.error('Specialization Required');
+      return;
+    }
+    if (!selectedDocId) {
+      toast.error('Doctor Required');
+      return;
+    }
+    if (!selectedPatient) {
+      toast.error('Patient Required');
+      return;
+    }
+    if (!symptoms.trim()) {
+      toast.error('Symptoms Required');
       return;
     }
 
@@ -286,6 +342,7 @@ export default function BookWalkInAppointment() {
         patientId: selectedPatient.id,
         doctorId: Number(selectedDocId),
         departmentId: Number(selectedDeptId),
+        specializationId: Number(selectedSpecId),
         appointmentDate: finalAppointmentDate,
         symptoms: symptoms.trim(),
       };
@@ -480,9 +537,13 @@ export default function BookWalkInAppointment() {
             <h3 className="text-base font-bold text-slate-800">Step 2: Enter Appointment Details</h3>
 
             <form onSubmit={handleBook} className="space-y-4">
-              <div className="grid gap-4 sm:grid-cols-2">
+              <div className="grid gap-4 sm:grid-cols-3">
+                {/* Department Dropdown */}
                 <div className="space-y-1.5">
-                  <label className="text-sm font-semibold text-slate-700">Select Department *</label>
+                  <label className="text-sm font-semibold text-slate-700 flex items-center justify-between">
+                    <span>Select Department *</span>
+                    {loadingDepts && <Loader2 className="h-3.5 w-3.5 animate-spin text-blue-600" />}
+                  </label>
                   <select
                     value={selectedDeptId}
                     onChange={(e) => setSelectedDeptId(e.target.value)}
@@ -496,22 +557,64 @@ export default function BookWalkInAppointment() {
                   </select>
                 </div>
 
+                {/* Specialization Dropdown */}
                 <div className="space-y-1.5">
-                  <label className="text-sm font-semibold text-slate-700">Select Doctor *</label>
+                  <label className="text-sm font-semibold text-slate-700 flex items-center justify-between">
+                    <span>Select Specialization *</span>
+                    {loadingSpecs && <Loader2 className="h-3.5 w-3.5 animate-spin text-blue-600" />}
+                  </label>
+                  <select
+                    value={selectedSpecId}
+                    onChange={(e) => setSelectedSpecId(e.target.value)}
+                    disabled={!selectedDeptId || loadingSpecs || specializations.length === 0}
+                    required
+                    className="w-full rounded-xl border border-slate-200 p-2.5 text-sm outline-none focus:border-blue-500 bg-white disabled:bg-slate-100 disabled:text-slate-400 cursor-pointer disabled:cursor-not-allowed"
+                  >
+                    <option value="">
+                      {loadingSpecs
+                        ? 'Loading Specializations...'
+                        : !selectedDeptId
+                        ? '-- Select Specialization --'
+                        : specializations.length === 0
+                        ? 'No Specializations Available'
+                        : '-- Select Specialization --'}
+                    </option>
+                    {specializations.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.specializationName || s.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Doctor Dropdown */}
+                <div className="space-y-1.5">
+                  <label className="text-sm font-semibold text-slate-700 flex items-center justify-between">
+                    <span>Select Doctor *</span>
+                    {loadingDocs && <Loader2 className="h-3.5 w-3.5 animate-spin text-blue-600" />}
+                  </label>
                   <select
                     value={selectedDocId}
                     onChange={(e) => setSelectedDocId(e.target.value)}
-                    disabled={!selectedDeptId}
+                    disabled={!selectedSpecId || loadingDocs || doctors.length === 0}
                     required
-                    className="w-full rounded-xl border border-slate-200 p-2.5 text-sm outline-none focus:border-blue-500 bg-white"
+                    className="w-full rounded-xl border border-slate-200 p-2.5 text-sm outline-none focus:border-blue-500 bg-white disabled:bg-slate-100 disabled:text-slate-400 cursor-pointer disabled:cursor-not-allowed"
                   >
-                    <option value="">-- Select Doctor --</option>
+                    <option value="">
+                      {loadingDocs
+                        ? 'Loading Doctors...'
+                        : !selectedSpecId
+                        ? '-- Select Doctor --'
+                        : doctors.length === 0
+                        ? 'No Doctors Available'
+                        : '-- Select Doctor --'}
+                    </option>
                     {doctors.map((doc) => {
                       const status = getDoctorDateStatus(doc);
                       const isAvail = status === 'AVAILABLE';
                       const spec = doc.specializationName || doc.specialization || '';
                       const specText = spec ? ` - ${spec}` : '';
-                      
+
                       let availBadge = '';
                       if (selectedDate) {
                         if (status === 'AVAILABLE') availBadge = ' (🟢 Available)';
@@ -525,34 +628,33 @@ export default function BookWalkInAppointment() {
                           Dr. {doc.firstName} {doc.lastName}{specText}{availBadge}
                         </option>
                       );
-
                     })}
                   </select>
-
-                  {selectedDocId && (() => {
-                    const selDoc = doctors.find((d) => String(d.id) === String(selectedDocId));
-                    if (!selDoc) return null;
-                    const status = getDoctorDateStatus(selDoc);
-                    const isAvail = status === 'AVAILABLE';
-                    
-                    return (
-                      <div className="pt-1">
-                        {isAvail ? (
-                          <span className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-lg">
-                            <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-                            🟢 (Available) Doctor is Available for Consultation {selectedDate ? `on ${selectedDate}` : ''}
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1.5 text-xs font-bold text-rose-700 bg-rose-50 border border-rose-200 px-3 py-1 rounded-lg">
-                            <span className="h-2 w-2 rounded-full bg-rose-500" />
-                            🔴 ({status.replace('_', ' ')}) Doctor is Currently Unavailable / On Leave {selectedDate ? `on ${selectedDate}` : ''}
-                          </span>
-                        )}
-                      </div>
-                    );
-                  })()}
                 </div>
               </div>
+
+              {selectedDocId && (() => {
+                const selDoc = doctors.find((d) => String(d.id) === String(selectedDocId));
+                if (!selDoc) return null;
+                const status = getDoctorDateStatus(selDoc);
+                const isAvail = status === 'AVAILABLE';
+
+                return (
+                  <div className="pt-1">
+                    {isAvail ? (
+                      <span className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-lg">
+                        <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                        🟢 (Available) Doctor is Available for Consultation {selectedDate ? `on ${selectedDate}` : ''}
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1.5 text-xs font-bold text-rose-700 bg-rose-50 border border-rose-200 px-3 py-1 rounded-lg">
+                        <span className="h-2 w-2 rounded-full bg-rose-500" />
+                        🔴 ({status.replace('_', ' ')}) Doctor is Currently Unavailable / On Leave {selectedDate ? `on ${selectedDate}` : ''}
+                      </span>
+                    )}
+                  </div>
+                );
+              })()}
 
               {/* Select Date */}
               <div className="space-y-1.5">

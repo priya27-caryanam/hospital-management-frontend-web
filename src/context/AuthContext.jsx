@@ -1,8 +1,8 @@
 /**
  * Authentication Context
  * Manages user authentication state across the application
- * - Stores JWT token and user info in localStorage
- * - Synchronously restores session on app mount/refresh using lazy initializers
+ * - Stores JWT token and user info in localStorage & sessionStorage
+ * - Synchronously restores session on app mount/refresh
  * - Provides login/logout functions
  */
 import { createContext, useContext, useState, useEffect } from 'react';
@@ -34,9 +34,7 @@ function decodeToken(token) {
 function isTokenExpired(token) {
   if (!token) return true;
   const decoded = decodeToken(token);
-  // If token cannot be decoded as standard JWT, treat as valid token string
   if (!decoded) return false;
-  // If JWT contains an explicit exp claim, check expiration time
   if (decoded.exp && typeof decoded.exp === 'number') {
     return decoded.exp * 1000 < Date.now();
   }
@@ -46,7 +44,7 @@ function isTokenExpired(token) {
 /** Helper to get stored token from tab-isolated sessionStorage or fallback localStorage */
 function getStoredToken() {
   const token = sessionStorage.getItem('token') || localStorage.getItem('token');
-  return token && !isTokenExpired(token) ? token : null;
+  return token && token !== 'undefined' && token !== 'null' && !isTokenExpired(token) ? token : null;
 }
 
 /** Helper to get stored user from tab-isolated sessionStorage or fallback localStorage */
@@ -63,7 +61,6 @@ function getStoredUser() {
 }
 
 export function AuthProvider({ children }) {
-  // Lazy state initializers for synchronous, flash-free session restoration
   const [token, setToken] = useState(() => getStoredToken());
   const [user, setUser] = useState(() => getStoredUser());
   const [loading, setLoading] = useState(false);
@@ -83,29 +80,49 @@ export function AuthProvider({ children }) {
 
   /**
    * Login — calls backend login API and stores tab-isolated session
-   * @returns {string} The user's role for navigation
+   * Accepts username (Email or Mobile Number) and password
    */
-  const login = async (email, password) => {
-    const response = await authApi.login(email, password);
-    const data = response.data;
+  const login = async (username, password) => {
+    const response = await authApi.login(username, password);
+    const resData = response.data;
+
+    // Support both direct response objects and wrapper objects
+    const data = resData?.data || resData;
+
+    const tokenStr =
+      data.token ||
+      data.jwt ||
+      data.jwtToken ||
+      data.accessToken ||
+      resData.token ||
+      resData.jwt ||
+      resData.jwtToken ||
+      resData.accessToken;
+
+    if (!tokenStr) {
+      throw new Error('No JWT token returned from authentication server');
+    }
+
+    const rawRole = data.role || resData.role || 'PATIENT';
+    const cleanRole = String(rawRole).replace('ROLE_', '').toUpperCase();
 
     const userData = {
-      userId: data.userId,
-      email: data.email,
-      name: data.name,
-      role: data.role,
+      userId: data.userId || data.id || resData.userId || resData.id || 1,
+      email: data.email || data.username || username,
+      name: data.name || `${data.firstName || ''} ${data.lastName || ''}`.trim() || 'User',
+      role: cleanRole,
     };
 
-    // Store in tab-isolated sessionStorage (and sync to localStorage)
-    sessionStorage.setItem('token', data.token);
+    // Store token and user data in storage
+    sessionStorage.setItem('token', tokenStr);
     sessionStorage.setItem('user', JSON.stringify(userData));
-    localStorage.setItem('token', data.token);
+    localStorage.setItem('token', tokenStr);
     localStorage.setItem('user', JSON.stringify(userData));
 
-    setToken(data.token);
+    setToken(tokenStr);
     setUser(userData);
 
-    return data.role;
+    return cleanRole;
   };
 
   /** Logout — completely clears all authentication data and tab sessions */

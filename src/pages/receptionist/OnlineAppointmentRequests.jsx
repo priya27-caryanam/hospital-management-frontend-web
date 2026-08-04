@@ -46,24 +46,10 @@ export default function OnlineAppointmentRequests() {
   // Load doctors via available departments
   const fetchDoctorsList = async () => {
     try {
-      const deptRes = await departmentApi.getAll();
-      const depts = deptRes.data || [];
-      const allDocs = [];
-      for (const d of depts) {
-        try {
-          const docRes = await doctorApi.getByDepartment(d.id);
-          if (Array.isArray(docRes.data)) {
-            allDocs.push(...docRes.data);
-          }
-        } catch (e) {
-          // ignore
-        }
-      }
-      const docMap = new Map();
-      allDocs.forEach((doc) => docMap.set(doc.id, doc));
-      const uniqueDocs = Array.from(docMap.values());
-      setDoctorsList(uniqueDocs);
-      return uniqueDocs;
+      const res = await doctorApi.getAll();
+      const docs = Array.isArray(res.data) ? res.data : (res.data?.data || res.data?.content || []);
+      setDoctorsList(docs);
+      return docs;
     } catch (err) {
       console.error('Failed to load doctors list:', err);
       return [];

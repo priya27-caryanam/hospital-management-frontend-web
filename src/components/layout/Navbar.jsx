@@ -2,7 +2,7 @@
  * Top Navbar Component
  * Displays hospital branding, user role, real-time notification bell telemetry, and logout
  */
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Menu, Bell, LogOut } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import notificationApi from '../../api/notificationApi';
@@ -54,13 +54,23 @@ export default function Navbar({ onMenuToggle }) {
     setUnreadCount(remoteCount + localUnread);
   }, [user]);
 
+  // Keep latest reference of fetchUnreadCount to prevent effect-recreation loop on render
+  const fetchUnreadCountRef = useRef(fetchUnreadCount);
+  useEffect(() => {
+    fetchUnreadCountRef.current = fetchUnreadCount;
+  }, [fetchUnreadCount]);
 
   useEffect(() => {
-    fetchUnreadCount();
-    const interval = setInterval(fetchUnreadCount, 15000);
+    // Initial fetch on mount
+    fetchUnreadCountRef.current();
+
+    // Poll every 30 seconds instead of 15s to reduce unread-count requests by 50%
+    const interval = setInterval(() => {
+      fetchUnreadCountRef.current();
+    }, 30000);
 
     const handleNotifEvent = () => {
-      fetchUnreadCount();
+      fetchUnreadCountRef.current();
     };
 
     window.addEventListener('hms_notification_trigger', handleNotifEvent);
@@ -71,8 +81,7 @@ export default function Navbar({ onMenuToggle }) {
       window.removeEventListener('hms_notification_trigger', handleNotifEvent);
       window.removeEventListener('hms_dashboard_refresh', handleNotifEvent);
     };
-  }, [fetchUnreadCount]);
-
+  }, []);
 
   return (
     <header className="sticky top-0 z-30 flex items-center justify-between border-b border-slate-200 bg-white/80 backdrop-blur-xl px-4 py-3 lg:px-6">
