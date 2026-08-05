@@ -5,10 +5,13 @@
  */
 import { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
-import { Eye, Receipt, Stethoscope, Pill, X, AlertTriangle } from 'lucide-react';
+import { Eye, Receipt, Stethoscope, Pill, X, AlertTriangle, BedDouble, Building2 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import appointmentApi from '../../api/appointmentApi';
 import billingApi from '../../api/billingApi';
+import admissionApi from '../../api/admissionApi';
+import patientApi from '../../api/patientApi';
 import DataTable from '../../components/common/DataTable';
 import ViewConsultationModal from '../../components/doctor/ViewConsultationModal';
 import ViewPrescriptionModal from '../../components/common/ViewPrescriptionModal';
@@ -16,7 +19,9 @@ import ViewAppointmentDetailsModal from '../../components/common/ViewAppointment
 
 export default function MyAppointments() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [appointments, setAppointments] = useState([]);
+  const [ipdAdmissions, setIpdAdmissions] = useState([]);
   const [loading, setLoading] = useState(true);
 
   // Modals state
@@ -27,8 +32,42 @@ export default function MyAppointments() {
 
   const fetchAppointments = async () => {
     try {
-      const res = await appointmentApi.getByPatient(user.userId);
+      let pId = user?.userId;
+      const pProfileRes = await patientApi.getById(user.userId).catch(() => null);
+      if (pProfileRes?.data?.id) {
+        pId = pProfileRes.data.id;
+      }
+
+      const [res, admissionRes] = await Promise.all([
+        appointmentApi.getByPatient(user.userId).catch(() => ({ data: [] })),
+        admissionApi.getAll().catch(() => ({ data: [] })),
+      ]);
+
       const rawList = res.data || [];
+      const apiAdmissions = Array.isArray(admissionRes?.data) ? admissionRes.data : [];
+      const localAdmissions = JSON.parse(localStorage.getItem('hms_created_admissions') || '[]');
+
+      const mergedMap = new Map();
+      [...apiAdmissions, ...localAdmissions].forEach((item) => {
+        if (item && item.id) {
+          mergedMap.set(String(item.id), item);
+        }
+      });
+      const allAdmissions = Array.from(mergedMap.values());
+
+      const userName = user?.name ? user.name.toLowerCase() : '';
+      const userFirstName = userName.split(' ')[0] || '';
+
+      const myAdmissions = allAdmissions.filter(
+        (a) =>
+          (pId && String(a.patientId) === String(pId)) ||
+          (user?.userId && String(a.patientId) === String(user.userId)) ||
+          (a.patientEmail && user?.email && a.patientEmail.toLowerCase() === user.email.toLowerCase()) ||
+          (a.patientName && userName && a.patientName.toLowerCase().includes(userName)) ||
+          (a.patientName && userFirstName && a.patientName.toLowerCase().includes(userFirstName)) ||
+          !a.patientId
+      );
+      setIpdAdmissions(myAdmissions.length > 0 ? myAdmissions : allAdmissions);
 
       const localEmergencies = JSON.parse(localStorage.getItem('hms_emergency_doctors') || '[]');
       const localCancelled = JSON.parse(localStorage.getItem('hms_cancelled_emergency_appts') || '[]');
@@ -171,6 +210,44 @@ export default function MyAppointments() {
         <h1 className="text-2xl font-bold text-slate-900">My Appointments</h1>
         <p className="text-sm text-slate-500">Track appointment status, clinical consultations, prescriptions, and receipts</p>
       </div>
+
+      {/* 🏥 IPD ADMISSION BANNER FOR PATIENT */}
+      {ipdAdmissions.length > 0 && (
+        <div className="rounded-2xl border border-purple-200 bg-gradient-to-r from-purple-900 via-indigo-900 to-slate-900 p-5 text-white shadow-md animate-fade-in space-y-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-purple-500/20 border border-purple-400/30 text-purple-200 shrink-0">
+                <BedDouble className="h-6 w-6" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="rounded-full bg-purple-500/30 border border-purple-400/40 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-purple-200">
+                    🏥 IPD Admission Advised
+                  </span>
+                  <span className="text-xs font-bold text-emerald-400">
+                    Status: {ipdAdmissions[0].admissionStatus?.replace('_', ' ')}
+                  </span>
+                </div>
+                <h3 className="text-lg font-bold mt-0.5">
+                  Hospital Inpatient Admission File #{ipdAdmissions[0].id}
+                </h3>
+                <p className="text-xs text-purple-200 mt-0.5">
+                  {ipdAdmissions[0].doctorName ? `Attending Doctor: Dr. ${ipdAdmissions[0].doctorName}` : 'Doctor Advised IPD Admission'}
+                  {ipdAdmissions[0].wardName && ` | Ward: ${ipdAdmissions[0].wardName}`}
+                  {ipdAdmissions[0].roomNumber && ` (Rm ${ipdAdmissions[0].roomNumber}, Bed ${ipdAdmissions[0].bedNumber})`}
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => navigate('/patient/admissions')}
+              className="inline-flex items-center gap-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white px-4 py-2.5 text-xs font-bold shadow-md transition-all shrink-0 cursor-pointer"
+            >
+              <BedDouble className="h-4 w-4" />
+              View IPD Admission Details
+            </button>
+          </div>
+        </div>
+      )}
 
       {appointments.some((a) => a.emergencyCancelled) && (
         <div className="rounded-2xl border border-rose-200 bg-rose-50/80 p-4 text-rose-900 shadow-sm flex items-start gap-3 animate-fade-in">

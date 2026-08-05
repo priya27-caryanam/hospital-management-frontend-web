@@ -9,13 +9,17 @@ import { useAuth } from '../../context/AuthContext';
 import {
   LayoutDashboard, Building2, UserPlus, Users, CalendarDays,
   Receipt, Stethoscope, FileText, ClipboardList, UserCircle,
-  Search, HeartPulse, LogOut, X, Activity, Pill, TestTube, Package, FlaskConical,
+  Search, HeartPulse, LogOut, X, Activity, Pill, TestTube, Package, FlaskConical, BedDouble, DoorClosed,
 } from 'lucide-react';
 
 /** Navigation items per role with translation keys */
 const roleNavItems = {
   ADMIN: [
     { path: '/admin/dashboard', key: 'nav.dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { path: '/admin/admissions', key: 'nav.admissions', label: 'Patient Admissions (IPD)', icon: BedDouble },
+    { path: '/admin/wards', key: 'nav.wards', label: 'Ward Management', icon: Building2 },
+    { path: '/admin/rooms', key: 'nav.rooms', label: 'Room Management', icon: DoorClosed },
+    { path: '/admin/beds', key: 'nav.beds', label: 'Bed Management', icon: BedDouble },
     { path: '/admin/departments', key: 'nav.manageDepartments', label: 'Manage Departments', icon: Building2 },
     { path: '/admin/specializations', key: 'nav.manageSpecializations', label: 'Manage Specializations', icon: Building2 },
     { path: '/admin/register-doctor', key: 'nav.registerDoctor', label: 'Register Doctor', icon: UserPlus },
@@ -26,6 +30,7 @@ const roleNavItems = {
   ],
   DOCTOR: [
     { path: '/doctor/dashboard', key: 'nav.dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { path: '/doctor/admissions', key: 'nav.admissions', label: 'IPD In-Patients', icon: BedDouble },
     { path: '/doctor/appointments', key: 'nav.myAppointmentsAndLab', label: 'My Appointments & Lab Orders', icon: CalendarDays },
     { path: '/doctor/prescriptions', key: 'nav.addPrescription', label: 'Add Prescription', icon: ClipboardList },
     { path: '/doctor/my-availability', key: 'nav.myAvailability', label: 'My Availability', icon: CalendarDays },
@@ -38,6 +43,7 @@ const roleNavItems = {
   ],
   RECEPTIONIST: [
     { path: '/receptionist/dashboard', key: 'nav.dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { path: '/receptionist/admissions', key: 'nav.admissions', label: 'Patient Admissions (IPD)', icon: BedDouble },
     { path: '/receptionist/availability', key: 'nav.dailyAvailability', label: 'Daily Doctor Availability', icon: CalendarDays },
     { path: '/receptionist/patients', key: 'nav.patientSearch', label: 'Patient Search', icon: Search },
     { path: '/receptionist/offline-registration', key: 'nav.offlineRegistration', label: 'Offline Patient Registration', icon: UserPlus },
@@ -57,6 +63,7 @@ const roleNavItems = {
   ],
   PATIENT: [
     { path: '/patient/dashboard', key: 'nav.dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { path: '/patient/admissions', key: 'nav.admissions', label: 'IPD Admissions', icon: BedDouble },
     { path: '/patient/profile', key: 'nav.myProfile', label: 'My Profile', icon: UserCircle },
     { path: '/patient/doctors', key: 'nav.searchDoctor', label: 'Search Doctor', icon: Stethoscope },
     { path: '/patient/book-appointment', key: 'nav.bookAppointment', label: 'Book Appointment', icon: CalendarDays },

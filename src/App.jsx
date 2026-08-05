@@ -14,6 +14,10 @@ import RegisterPage from './pages/RegisterPage';
 
 // Admin pages
 import AdminDashboard from './pages/admin/AdminDashboard';
+import AdminAdmissions from './pages/admin/Admissions';
+import ManageWards from './pages/admin/ManageWards';
+import ManageRooms from './pages/admin/ManageRooms';
+import ManageBeds from './pages/admin/ManageBeds';
 import ManageDepartments from './pages/admin/ManageDepartments';
 import ManageSpecializations from './pages/admin/ManageSpecializations';
 import RegisterDoctor from './pages/admin/RegisterDoctor';
@@ -28,6 +32,7 @@ import Reports from './pages/admin/Reports';
 
 // Doctor pages
 import DoctorDashboard from './pages/doctor/DoctorDashboard';
+import DoctorAdmissions from './pages/doctor/Admissions';
 import DoctorProfile from './pages/doctor/DoctorProfile';
 import DoctorAppointments from './pages/doctor/MyAppointments';
 import AddPrescription from './pages/doctor/AddPrescription';
@@ -40,6 +45,7 @@ import AssignedPatients from './pages/nurse/AssignedPatients';
 
 // Receptionist pages
 import ReceptionistDashboard from './pages/receptionist/ReceptionistDashboard';
+import ReceptionistAdmissions from './pages/receptionist/Admissions';
 import DoctorAvailability from './pages/receptionist/DoctorAvailability';
 import ReceptionistPatientSearch from './pages/receptionist/PatientSearch';
 import OfflinePatientRegistration from './pages/receptionist/OfflinePatientRegistration';
@@ -60,6 +66,7 @@ import LabReports from './pages/lab/LabReports';
 
 // Patient pages
 import PatientDashboard from './pages/patient/PatientDashboard';
+import PatientAdmissions from './pages/patient/Admissions';
 import PatientProfile from './pages/patient/PatientProfile';
 import SearchDoctor from './pages/patient/SearchDoctor';
 import PatientBookAppointment from './pages/patient/BookAppointment';
@@ -89,6 +96,10 @@ export default function App() {
       >
         <Route index element={<Navigate to="dashboard" replace />} />
         <Route path="dashboard" element={<AdminDashboard />} />
+        <Route path="admissions" element={<AdminAdmissions />} />
+        <Route path="wards" element={<ManageWards />} />
+        <Route path="rooms" element={<ManageRooms />} />
+        <Route path="beds" element={<ManageBeds />} />
         <Route path="departments" element={<ManageDepartments />} />
         <Route path="specializations" element={<ManageSpecializations />} />
         <Route path="register-doctor" element={<RegisterDoctor />} />
@@ -114,6 +125,7 @@ export default function App() {
       >
         <Route index element={<Navigate to="dashboard" replace />} />
         <Route path="dashboard" element={<DoctorDashboard />} />
+        <Route path="admissions" element={<DoctorAdmissions />} />
         <Route path="profile" element={<DoctorProfile />} />
         <Route path="appointments" element={<DoctorAppointments />} />
         <Route path="prescriptions" element={<AddPrescription />} />
@@ -146,6 +158,7 @@ export default function App() {
       >
         <Route index element={<Navigate to="dashboard" replace />} />
         <Route path="dashboard" element={<ReceptionistDashboard />} />
+        <Route path="admissions" element={<ReceptionistAdmissions />} />
         <Route path="availability" element={<DoctorAvailability />} />
         <Route path="patients" element={<ReceptionistPatientSearch />} />
         <Route path="offline-registration" element={<OfflinePatientRegistration />} />
@@ -196,6 +209,7 @@ export default function App() {
       >
         <Route index element={<Navigate to="dashboard" replace />} />
         <Route path="dashboard" element={<PatientDashboard />} />
+        <Route path="admissions" element={<PatientAdmissions />} />
         <Route path="profile" element={<PatientProfile />} />
         <Route path="doctors" element={<SearchDoctor />} />
         <Route path="book-appointment" element={<PatientBookAppointment />} />

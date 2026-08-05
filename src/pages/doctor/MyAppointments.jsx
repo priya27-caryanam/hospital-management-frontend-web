@@ -22,6 +22,7 @@ import {
   Filter,
   FlaskConical,
   FileCheck,
+  BedDouble,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../context/AuthContext';
@@ -38,6 +39,7 @@ import ViewPrescriptionModal from '../../components/common/ViewPrescriptionModal
 import ViewAppointmentDetailsModal from '../../components/common/ViewAppointmentDetailsModal';
 import CreateLabOrderModal from '../../components/doctor/CreateLabOrderModal';
 import ReviewLabReportModal from '../../components/doctor/ReviewLabReportModal';
+import AdmissionRequestModal from '../../components/admission/AdmissionRequestModal';
 import { saveAppointmentName } from '../../utils/appointmentCache';
 
 const STATUS_STYLES = {
@@ -66,6 +68,8 @@ export default function MyAppointments() {
   const [viewPrescriptionModalId, setViewPrescriptionModalId] = useState(null);
   const [createLabOrderApptId, setCreateLabOrderApptId] = useState(null);
   const [reviewLabReportOrderId, setReviewLabReportOrderId] = useState(null);
+  const [isAdmissionModalOpen, setIsAdmissionModalOpen] = useState(false);
+  const [selectedPatientForAdmission, setSelectedPatientForAdmission] = useState(null);
 
   const [labOrdersMap, setLabOrdersMap] = useState({});
 
@@ -313,7 +317,7 @@ export default function MyAppointments() {
           );
         }
 
-        // APPROVED / SCHEDULED -> Record Consult / Order Lab Test / Consult Done
+        // APPROVED / SCHEDULED -> Record Consult / Need Admission / Order Lab Test / Consult Done
         if (status === 'APPROVED' || status === 'SCHEDULED') {
           return (
             <div className="flex items-center gap-1.5 flex-wrap">
@@ -323,6 +327,22 @@ export default function MyAppointments() {
               >
                 <Stethoscope className="h-3.5 w-3.5" />
                 Record Consult
+              </button>
+              <button
+                onClick={() => {
+                  setSelectedPatientForAdmission({
+                    id: row.patientId,
+                    firstName: row.patientName || `Patient #${row.patientId}`,
+                    lastName: '',
+                    mobile: row.patientPhone,
+                  });
+                  setIsAdmissionModalOpen(true);
+                }}
+                className="inline-flex items-center gap-1 rounded-xl bg-purple-600 hover:bg-purple-700 text-white px-3 py-1.5 text-xs font-semibold shadow-xs transition-all cursor-pointer"
+                title="Create Patient Admission Request (IPD)"
+              >
+                <BedDouble className="h-3.5 w-3.5" />
+                Need Admission (IPD)
               </button>
               <button
                 onClick={() => setCreateLabOrderApptId(apptId)}
@@ -344,7 +364,7 @@ export default function MyAppointments() {
           );
         }
 
-        // CONSULTATION_DONE / CONSULTATION_COMPLETED -> Create Prescription + Create Lab Test / Lab Test Ordered badge
+        // CONSULTATION_DONE / CONSULTATION_COMPLETED -> Create Prescription + Need Admission + Create Lab Test
         if (status === 'CONSULTATION_DONE' || status === 'CONSULTATION_COMPLETED') {
           const hasLabOrder = !!labOrdersMap[apptId];
           return (
@@ -363,6 +383,22 @@ export default function MyAppointments() {
               >
                 <Pill className="h-3.5 w-3.5" />
                 Create Prescription
+              </button>
+              <button
+                onClick={() => {
+                  setSelectedPatientForAdmission({
+                    id: row.patientId,
+                    firstName: row.patientName || `Patient #${row.patientId}`,
+                    lastName: '',
+                    mobile: row.patientPhone,
+                  });
+                  setIsAdmissionModalOpen(true);
+                }}
+                className="inline-flex items-center gap-1 rounded-xl bg-purple-600 hover:bg-purple-700 text-white px-3 py-1.5 text-xs font-semibold shadow-xs transition-all cursor-pointer"
+                title="Create Patient Admission Request (IPD)"
+              >
+                <BedDouble className="h-3.5 w-3.5" />
+                Need Admission (IPD)
               </button>
               {!hasLabOrder ? (
                 <button
@@ -395,10 +431,10 @@ export default function MyAppointments() {
           );
         }
 
-        // COMPLETED -> View Consult / View Prescription / Review Lab Report
+        // COMPLETED -> View Consult / View Prescription / Review Lab Report / Need Admission
         if (status === 'COMPLETED') {
           return (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <button
                 onClick={() => setViewConsultModalId(apptId)}
                 className="inline-flex items-center gap-1 text-xs text-purple-700 font-semibold hover:underline"
@@ -412,6 +448,22 @@ export default function MyAppointments() {
               >
                 <Pill className="h-3.5 w-3.5" />
                 Prescription
+              </button>
+              <button
+                onClick={() => {
+                  setSelectedPatientForAdmission({
+                    id: row.patientId,
+                    firstName: row.patientName || `Patient #${row.patientId}`,
+                    lastName: '',
+                    mobile: row.patientPhone,
+                  });
+                  setIsAdmissionModalOpen(true);
+                }}
+                className="inline-flex items-center gap-1 rounded-lg bg-purple-100 text-purple-700 px-2 py-1 text-xs font-bold hover:bg-purple-200 transition-colors"
+                title="Create Patient Admission Request (IPD)"
+              >
+                <BedDouble className="h-3.5 w-3.5" />
+                Need Admission
               </button>
               <button
                 onClick={() => setReviewLabReportOrderId(apptId)}
@@ -557,6 +609,14 @@ export default function MyAppointments() {
         labOrderId={reviewLabReportOrderId}
         isOpen={Boolean(reviewLabReportOrderId)}
         onClose={() => setReviewLabReportOrderId(null)}
+        onSuccess={fetchAppointments}
+      />
+
+      {/* Doctor IPD Admission Request Modal (POST /api/admissions/request) */}
+      <AdmissionRequestModal
+        isOpen={isAdmissionModalOpen}
+        onClose={() => setIsAdmissionModalOpen(false)}
+        patient={selectedPatientForAdmission}
         onSuccess={fetchAppointments}
       />
     </div>

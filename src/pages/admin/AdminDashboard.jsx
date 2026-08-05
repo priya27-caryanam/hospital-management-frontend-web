@@ -17,11 +17,17 @@ import {
   HeartPulse,
   TestTube,
   Pill,
+  BedDouble,
+  DoorClosed,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../context/AuthContext';
 import departmentApi from '../../api/departmentApi';
 import dashboardApi from '../../api/dashboardApi';
+import wardApi from '../../api/wardApi';
+import roomApi from '../../api/roomApi';
+import bedApi from '../../api/bedApi';
+import admissionApi from '../../api/admissionApi';
 import StatsCard from '../../components/common/StatsCard';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 
@@ -34,16 +40,53 @@ export default function AdminDashboard() {
   const [departmentCount, setDepartmentCount] = useState(0);
   const [stats, setStats] = useState(null);
 
+  const [ipdStats, setIpdStats] = useState({
+    totalWards: 0,
+    totalRooms: 0,
+    totalBeds: 0,
+    availableBeds: 0,
+    occupiedBeds: 0,
+    admissionsToday: 0,
+    currentIpdPatients: 0,
+  });
+
   /** Fetch aggregate stats on mount */
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        const [deptRes, statsRes] = await Promise.all([
-          departmentApi.getAll(),
-          dashboardApi.getAdminStats(),
+        const [deptRes, statsRes, wardRes, roomRes, bedRes, admissionRes] = await Promise.all([
+          departmentApi.getAll().catch(() => ({ data: [] })),
+          dashboardApi.getAdminStats().catch(() => ({ data: {} })),
+          wardApi.getAll().catch(() => ({ data: [] })),
+          roomApi.getAll().catch(() => ({ data: [] })),
+          bedApi.getAll().catch(() => ({ data: [] })),
+          admissionApi.getAll().catch(() => ({ data: [] })),
         ]);
         setDepartmentCount(deptRes.data?.length || 0);
-        setStats(statsRes.data);
+        setStats(statsRes.data || {});
+
+        const wardsList = wardRes.data || [];
+        const roomsList = roomRes.data || [];
+        const bedsList = bedRes.data || [];
+        const admissionsList = admissionRes.data || [];
+
+        const availBedsCount = bedsList.filter((b) => b.status === 'AVAILABLE').length;
+        const occBedsCount = bedsList.filter((b) => b.status === 'OCCUPIED').length;
+        const activeAdmitted = admissionsList.filter((a) => a.admissionStatus === 'ADMITTED' || a.admissionStatus === 'BED_ASSIGNED').length;
+
+        const now = new Date();
+        const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+        const todayAdmissionsCount = admissionsList.filter((a) => a.createdAt && String(a.createdAt).startsWith(todayStr)).length;
+
+        setIpdStats({
+          totalWards: wardsList.length,
+          totalRooms: roomsList.length,
+          totalBeds: bedsList.length,
+          availableBeds: availBedsCount,
+          occupiedBeds: occBedsCount,
+          admissionsToday: todayAdmissionsCount,
+          currentIpdPatients: activeAdmitted,
+        });
       } catch (err) {
         toast.error(t('common.error'));
         console.error(err);
@@ -56,12 +99,14 @@ export default function AdminDashboard() {
 
   /** Quick action buttons for common admin tasks */
   const quickActions = [
+    { label: 'Patient Admissions (IPD)', icon: BedDouble, path: '/admin/admissions' },
+    { label: 'Ward Management', icon: Building2, path: '/admin/wards' },
+    { label: 'Room Management', icon: DoorClosed, path: '/admin/rooms' },
+    { label: 'Bed Management', icon: BedDouble, path: '/admin/beds' },
     { label: t('nav.manageDepartments'), icon: Building2, path: '/admin/departments' },
     { label: t('nav.registerDoctor'), icon: Stethoscope, path: '/admin/register-doctor' },
     { label: t('nav.registerNurse'), icon: HeartPulse, path: '/admin/register-nurse' },
     { label: t('nav.registerReceptionist'), icon: UserPlus, path: '/admin/register-receptionist' },
-    { label: t('nav.registerPharmacist'), icon: Pill, path: '/admin/register-pharmacist' },
-    { label: t('nav.registerLabTech'), icon: TestTube, path: '/admin/register-lab-technician' },
     { label: t('nav.patientSearch'), icon: Users, path: '/admin/patients' },
     { label: t('nav.appointments'), icon: CalendarCheck, path: '/admin/appointments' },
     { label: t('nav.billing'), icon: Receipt, path: '/admin/billing' },
@@ -87,6 +132,55 @@ export default function AdminDashboard() {
           {t('admin.statsOverview')}
         </h2>
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          <StatsCard
+            icon={Building2}
+            label="Total Wards"
+            value={ipdStats.totalWards}
+            color="blue"
+            onClick={() => navigate('/admin/wards')}
+          />
+          <StatsCard
+            icon={DoorClosed}
+            label="Total Rooms"
+            value={ipdStats.totalRooms}
+            color="indigo"
+            onClick={() => navigate('/admin/rooms')}
+          />
+          <StatsCard
+            icon={BedDouble}
+            label="Total Beds"
+            value={ipdStats.totalBeds}
+            color="purple"
+            onClick={() => navigate('/admin/beds')}
+          />
+          <StatsCard
+            icon={BedDouble}
+            label="Available Beds"
+            value={ipdStats.availableBeds}
+            color="emerald"
+            onClick={() => navigate('/admin/beds')}
+          />
+          <StatsCard
+            icon={BedDouble}
+            label="Occupied Beds"
+            value={ipdStats.occupiedBeds}
+            color="amber"
+            onClick={() => navigate('/admin/beds')}
+          />
+          <StatsCard
+            icon={Users}
+            label="Admissions Today"
+            value={ipdStats.admissionsToday}
+            color="cyan"
+            onClick={() => navigate('/admin/admissions')}
+          />
+          <StatsCard
+            icon={HeartPulse}
+            label="Current IPD Patients"
+            value={ipdStats.currentIpdPatients}
+            color="rose"
+            onClick={() => navigate('/admin/admissions')}
+          />
           <StatsCard
             icon={Building2}
             label={t('admin.totalDepartments')}

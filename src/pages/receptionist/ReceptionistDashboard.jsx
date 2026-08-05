@@ -11,13 +11,15 @@ import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
   Search, CalendarDays, Receipt, HeartPulse,
-  Users, Clock, UserCircle, ArrowRight, CheckCircle, AlertCircle, XCircle, UserPlus,
+  Users, Clock, UserCircle, ArrowRight, CheckCircle, AlertCircle, XCircle, UserPlus, BedDouble,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../context/AuthContext';
 import receptionistApi from '../../api/receptionistApi';
 import dashboardApi from '../../api/dashboardApi';
 import patientApi from '../../api/patientApi';
+import admissionApi from '../../api/admissionApi';
+import bedApi from '../../api/bedApi';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 import StatsCard from '../../components/common/StatsCard';
 
@@ -30,32 +32,47 @@ export default function ReceptionistDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  /* Fetch receptionist profile, live backend stats, and patients list */
+  /* Fetch receptionist profile, live backend stats, patients list, and IPD admissions */
   const fetchData = async () => {
     setLoading(true);
     setError(null);
     try {
-      const [profileRes, statsRes, patientRes] = await Promise.all([
+      const [profileRes, statsRes, patientRes, admissionRes, bedRes] = await Promise.all([
         receptionistApi.getById(user.userId).catch(() => ({ data: null })),
         dashboardApi.getReceptionistStats().catch(() => ({ data: null })),
         patientApi.search('').catch(() => ({ data: [] })),
+        admissionApi.getAll().catch(() => ({ data: [] })),
+        bedApi.getAll().catch(() => ({ data: [] })),
       ]);
       if (profileRes?.data) setProfile(profileRes.data);
 
       const rawStats = statsRes?.data || {};
       const patientsList = Array.isArray(patientRes?.data) ? patientRes.data : [];
+      const admissionsList = Array.isArray(admissionRes?.data) ? admissionRes.data : [];
+      const bedsList = Array.isArray(bedRes?.data) ? bedRes.data : [];
 
-      // Robust date parsing for today's registered patients count
+      const activeAdmittedCount = admissionsList.filter((a) => a.admissionStatus === 'ADMITTED' || a.admissionStatus === 'BED_ASSIGNED').length;
+      const totalRequestsCount = admissionsList.filter((a) => a.admissionStatus === 'REQUESTED').length;
+      const admittedCount = admissionsList.filter((a) => a.admissionStatus === 'ADMITTED').length;
+
+      const availBedsCount = bedsList.filter((b) => b.status === 'AVAILABLE').length;
+      const occBedsCount = bedsList.filter((b) => b.status === 'OCCUPIED').length;
+
+      // Robust date parsing for today's registered patients & discharged today
       const now = new Date();
       const year = now.getFullYear();
       const month = String(now.getMonth() + 1).padStart(2, '0');
       const day = String(now.getDate()).padStart(2, '0');
       const todayStr = `${year}-${month}-${day}`;
 
+      const dischargedTodayCount = admissionsList.filter(
+        (a) => a.admissionStatus === 'DISCHARGED' && a.actualDischargeDate && String(a.actualDischargeDate).startsWith(todayStr)
+      ).length;
+
       const todayCountFromList = patientsList.filter((p) => {
         if (!p) return false;
         const dateVal = p.createdAt || p.registeredAt || p.date;
-        if (!dateVal) return true; // If backend omits createdAt timestamp on PatientResponse DTO, assume present patients in list are today's patients
+        if (!dateVal) return true;
         if (typeof dateVal === 'string') {
           return dateVal.startsWith(todayStr);
         }
@@ -82,8 +99,14 @@ export default function ReceptionistDashboard() {
         approvedAppointments: rawStats.approvedAppointments ?? 0,
         completedAppointments: rawStats.completedAppointments ?? 0,
         cancelledAppointments: rawStats.cancelledAppointments ?? 0,
+        totalAdmissions: admissionsList.length,
+        totalAdmissionRequests: totalRequestsCount,
+        totalAdmitted: admittedCount,
+        activeAdmitted: activeAdmittedCount,
+        availableBeds: availBedsCount,
+        occupiedBeds: occBedsCount,
+        dischargedToday: dischargedTodayCount,
       };
-
 
       setStats(mergedStats);
     } catch (err) {
@@ -133,6 +156,20 @@ export default function ReceptionistDashboard() {
   /** Quick-action cards that link to receptionist features */
   const quickActions = [
     {
+      icon: BedDouble,
+      label: 'New Admission Request',
+      description: 'Request new IPD patient admission',
+      path: '/receptionist/patients',
+      color: 'purple',
+    },
+    {
+      icon: BedDouble,
+      label: 'Manage IPD Beds & Admissions',
+      description: 'Manage bed allocations & discharges',
+      path: '/receptionist/admissions',
+      color: 'indigo',
+    },
+    {
       icon: Search,
       label: 'Patient Search',
       description: 'Search and view patient records',
@@ -178,10 +215,45 @@ export default function ReceptionistDashboard() {
         </div>
       </div>
 
-      {/* 100% Real Stats cards directly from GET /api/dashboard/receptionist response */}
+      {/* 100% Real Stats cards directly from GET /api/dashboard/receptionist & IPD backend */}
       <div>
         <h2 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">Live Hospital Desk Metrics</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          <StatsCard
+            icon={Clock}
+            label="Total Admission Requests"
+            value={stats?.totalAdmissionRequests ?? 0}
+            color="amber"
+            onClick={() => navigate('/receptionist/admissions?status=REQUESTED')}
+          />
+          <StatsCard
+            icon={BedDouble}
+            label="Total Admitted"
+            value={stats?.totalAdmitted ?? 0}
+            color="purple"
+            onClick={() => navigate('/receptionist/admissions?status=ADMITTED')}
+          />
+          <StatsCard
+            icon={BedDouble}
+            label="Available Beds"
+            value={stats?.availableBeds ?? 0}
+            color="emerald"
+            onClick={() => navigate('/receptionist/admissions')}
+          />
+          <StatsCard
+            icon={BedDouble}
+            label="Occupied Beds"
+            value={stats?.occupiedBeds ?? 0}
+            color="rose"
+            onClick={() => navigate('/receptionist/admissions')}
+          />
+          <StatsCard
+            icon={CheckCircle}
+            label="Discharged Today"
+            value={stats?.dischargedToday ?? 0}
+            color="cyan"
+            onClick={() => navigate('/receptionist/admissions?status=DISCHARGED')}
+          />
           <StatsCard
             icon={Users}
             label="Total Patients"

@@ -32,6 +32,7 @@ import {
   XCircle,
   Clock,
   ArrowRight,
+  BedDouble,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import patientApi from '../../api/patientApi';
@@ -41,6 +42,7 @@ import SearchBar from '../../components/common/SearchBar';
 import DataTable from '../../components/common/DataTable';
 import EmptyState from '../../components/common/EmptyState';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
+import AdmissionRequestModal from '../../components/admission/AdmissionRequestModal';
 
 const GENDERS = ['MALE', 'FEMALE', 'OTHER'];
 const BLOOD_GROUPS = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
@@ -88,6 +90,10 @@ export default function PatientSearch() {
   const [form, setForm] = useState(INITIAL_PATIENT_FORM);
   const [registering, setRegistering] = useState(false);
   const [registeredPatientResponse, setRegisteredPatientResponse] = useState(null);
+
+  // Patient Admission modal state
+  const [selectedPatientForAdmission, setSelectedPatientForAdmission] = useState(null);
+  const [isAdmissionModalOpen, setIsAdmissionModalOpen] = useState(false);
 
   // Auto-load patients on tab mount
   useEffect(() => {
@@ -462,6 +468,16 @@ export default function PatientSearch() {
                             >
                               <Calendar className="h-3.5 w-3.5" />
                               Book Appointment
+                            </button>
+                            <button
+                              onClick={() => {
+                                setSelectedPatientForAdmission(patient);
+                                setIsAdmissionModalOpen(true);
+                              }}
+                              className="flex items-center gap-1.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 text-xs font-semibold transition-colors shadow-sm"
+                            >
+                              <BedDouble className="h-3.5 w-3.5" />
+                              Admit Patient (IPD)
                             </button>
                             <span
                               className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-bold ${
@@ -919,6 +935,17 @@ export default function PatientSearch() {
           )}
         </div>
       )}
+
+      {/* IPD Admission Modal */}
+      <AdmissionRequestModal
+        isOpen={isAdmissionModalOpen}
+        onClose={() => setIsAdmissionModalOpen(false)}
+        patient={selectedPatientForAdmission}
+        onSuccess={() => {
+          setIsAdmissionModalOpen(false);
+          toast.success('Admission request created! You can track it in the Admissions Desk.');
+        }}
+      />
     </div>
   );
 }

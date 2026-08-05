@@ -20,6 +20,7 @@ import {
   X,
   Pill,
   Clock,
+  BedDouble,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../context/AuthContext';
@@ -27,6 +28,7 @@ import doctorApi from '../../api/doctorApi';
 import dashboardApi from '../../api/dashboardApi';
 import doctorAvailabilityApi from '../../api/doctorAvailabilityApi';
 import appointmentApi from '../../api/appointmentApi';
+import admissionApi from '../../api/admissionApi';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 import StatsCard from '../../components/common/StatsCard';
 
@@ -37,6 +39,12 @@ export default function DoctorDashboard() {
 
   const [doctor, setDoctor] = useState(null);
   const [stats, setStats] = useState(null);
+  const [ipdStats, setIpdStats] = useState({
+    myAdmittedPatients: 0,
+    todaysAdmissions: 0,
+    todaysDischarges: 0,
+    pendingRounds: 0,
+  });
   const [loading, setLoading] = useState(true);
   const [showEmergencyModal, setShowEmergencyModal] = useState(false);
   const [showDeactivateModal, setShowDeactivateModal] = useState(false);
@@ -48,15 +56,43 @@ export default function DoctorDashboard() {
     const fetchProfileAndStats = async () => {
       setLoading(true);
       try {
-        const profileRes = await doctorApi.getById(user.userId).catch(() => null);
-        if (profileRes?.data) {
-          setDoctor(profileRes.data);
-        }
+        const [profileRes, statsRes, admissionRes] = await Promise.all([
+          doctorApi.getById(user.userId).catch(() => null),
+          dashboardApi.getDoctorStats(user.userId).catch(() => null),
+          admissionApi.getAll().catch(() => ({ data: [] })),
+        ]);
 
-        const statsRes = await dashboardApi.getDoctorStats(user.userId).catch(() => null);
-        if (statsRes?.data) {
-          setStats(statsRes.data);
-        }
+        if (profileRes?.data) setDoctor(profileRes.data);
+        if (statsRes?.data) setStats(statsRes.data);
+
+        const docId = profileRes?.data?.id || user.userId;
+        const admissionsList = Array.isArray(admissionRes?.data) ? admissionRes.data : [];
+
+        const myAdmissions = admissionsList.filter(
+          (a) => String(a.doctorId) === String(docId) || String(a.doctorId) === String(user.userId)
+        );
+
+        const myAdmittedCount = myAdmissions.filter(
+          (a) => a.admissionStatus === 'ADMITTED' || a.admissionStatus === 'BED_ASSIGNED'
+        ).length;
+
+        const now = new Date();
+        const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+
+        const todayAdmissionsCount = myAdmissions.filter(
+          (a) => a.admissionDate && String(a.admissionDate).startsWith(todayStr)
+        ).length;
+
+        const todayDischargesCount = myAdmissions.filter(
+          (a) => a.actualDischargeDate && String(a.actualDischargeDate).startsWith(todayStr)
+        ).length;
+
+        setIpdStats({
+          myAdmittedPatients: myAdmittedCount,
+          todaysAdmissions: todayAdmissionsCount,
+          todaysDischarges: todayDischargesCount,
+          pendingRounds: myAdmittedCount,
+        });
       } catch (err) {
         console.error('Failed to load doctor dashboard data:', err);
         toast.error('Unable to load full dashboard stats.');
@@ -299,6 +335,40 @@ export default function DoctorDashboard() {
                 label="Consultation Fee"
                 value={doctor.consultationFee ? `₹${doctor.consultationFee}` : '₹500'}
                 color="amber"
+              />
+            </div>
+          </div>
+
+          <div>
+            <h2 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">IPD In-Patients Overview</h2>
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4 mb-6">
+              <StatsCard
+                icon={BedDouble}
+                label="My Admitted Patients"
+                value={ipdStats.myAdmittedPatients}
+                color="purple"
+                onClick={() => navigate('/doctor/admissions')}
+              />
+              <StatsCard
+                icon={CalendarCheck}
+                label="Today's Admissions"
+                value={ipdStats.todaysAdmissions}
+                color="blue"
+                onClick={() => navigate('/doctor/admissions')}
+              />
+              <StatsCard
+                icon={Activity}
+                label="Today's Discharges"
+                value={ipdStats.todaysDischarges}
+                color="emerald"
+                onClick={() => navigate('/doctor/admissions')}
+              />
+              <StatsCard
+                icon={Clock}
+                label="Pending Rounds"
+                value={ipdStats.pendingRounds}
+                color="amber"
+                onClick={() => navigate('/doctor/admissions')}
               />
             </div>
           </div>
