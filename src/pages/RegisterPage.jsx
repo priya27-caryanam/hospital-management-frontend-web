@@ -5,6 +5,7 @@
  */
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import {
   Activity,
   User,
@@ -23,6 +24,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import authApi from '../api/authApi';
+import LanguageSelector from '../components/common/LanguageSelector';
 
 /** Dropdown options */
 const GENDERS = ['MALE', 'FEMALE', 'OTHER'];
@@ -48,6 +50,7 @@ const INITIAL_FORM = {
 };
 
 export default function RegisterPage() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [form, setForm] = useState(INITIAL_FORM);
   const [showPassword, setShowPassword] = useState(false);
@@ -167,15 +170,20 @@ export default function RegisterPage() {
     errors[field] ? <p className="mt-1 text-xs text-red-500">{errors[field]}</p> : null;
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-indigo-50 px-4 py-10">
+    <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-blue-50 via-white to-indigo-50 px-4 py-10 relative">
+      {/* Top right language selector */}
+      <div className="absolute top-6 right-6">
+        <LanguageSelector />
+      </div>
+
       <div className="w-full max-w-3xl bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
         {/* ── Header ── */}
         <div className="bg-gradient-to-r from-blue-600 to-indigo-700 px-8 py-8 text-center">
           <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-white/20 backdrop-blur-sm mb-4">
             <Activity className="h-8 w-8 text-white" />
           </div>
-          <h1 className="text-2xl font-bold text-white">Create Your Account</h1>
-          <p className="text-blue-100 text-sm mt-1">Register as a patient to get started</p>
+          <h1 className="text-2xl font-bold text-white">{t('auth.registerTitle')}</h1>
+          <p className="text-blue-100 text-sm mt-1">{t('auth.registerSubtitle')}</p>
         </div>
 
         {/* ── Form ── */}

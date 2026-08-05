@@ -11,9 +11,11 @@
  */
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { Activity, User, Lock, Eye, EyeOff, ArrowLeft, LogIn } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
+import LanguageSelector from '../components/common/LanguageSelector';
 
 /** Role → dashboard path mapping */
 const DASHBOARD_PATHS = {
@@ -27,6 +29,7 @@ const DASHBOARD_PATHS = {
 };
 
 export default function LoginPage() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { login } = useAuth();
 
@@ -41,19 +44,11 @@ export default function LoginPage() {
     const val = form.username.trim();
 
     if (!val) {
-      errs.username = 'Email or Mobile Number is required';
-    } else {
-      const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val);
-      const isMobile = /^\d{10}$/.test(val);
-      if (!isEmail && !isMobile) {
-        errs.username = 'Enter a valid Email Address or 10-digit Mobile Number';
-      }
+      errs.username = t('auth.requiredEmail');
     }
 
     if (!form.password) {
-      errs.password = 'Password is required';
-    } else if (form.password.length < 4) {
-      errs.password = 'Password must be at least 4 characters';
+      errs.password = t('auth.requiredPassword');
     }
 
     setErrors(errs);
@@ -68,25 +63,11 @@ export default function LoginPage() {
     setIsLoading(true);
     try {
       const role = await login(form.username.trim(), form.password);
-      toast.success('Login successful!');
+      toast.success(t('common.success'));
       navigate(DASHBOARD_PATHS[role] || '/home', { replace: true });
     } catch (err) {
       console.error('Login Error:', err);
-      const status = err.response?.status;
-      if (status === 401) {
-        toast.error('Invalid Email/Mobile Number or Password');
-      } else if (status === 403) {
-        toast.error('Access Denied');
-      } else if (status === 500) {
-        toast.error('Something went wrong. Please try again.');
-      } else {
-        const message =
-          err.response?.data?.message ||
-          err.response?.data?.error ||
-          (typeof err.response?.data === 'string' ? err.response.data : '') ||
-          'Invalid credentials. Please try again.';
-        toast.error(message);
-      }
+      toast.error(t('auth.invalidCredentials'));
     } finally {
       setIsLoading(false);
     }
@@ -103,7 +84,12 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-indigo-50 px-4 py-12">
+    <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-blue-50 via-white to-indigo-50 px-4 py-12 relative">
+      {/* Top right language switch */}
+      <div className="absolute top-6 right-6">
+        <LanguageSelector />
+      </div>
+
       {/* Card */}
       <div className="w-full max-w-md bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
         {/* Header band */}
@@ -111,8 +97,8 @@ export default function LoginPage() {
           <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-white/20 backdrop-blur-sm mb-4">
             <Activity className="h-8 w-8 text-white" />
           </div>
-          <h1 className="text-2xl font-bold text-white">Welcome Back</h1>
-          <p className="text-blue-100 text-sm mt-1">Sign in to your HMS account</p>
+          <h1 className="text-2xl font-bold text-white">{t('auth.loginTitle')}</h1>
+          <p className="text-blue-100 text-sm mt-1">{t('auth.loginSubtitle')}</p>
         </div>
 
         {/* Form */}
@@ -120,7 +106,7 @@ export default function LoginPage() {
           {/* Email or Mobile Number */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1.5">
-              Email or Mobile Number <span className="text-red-500">*</span>
+              {t('auth.email')} <span className="text-red-500">*</span>
             </label>
             <div className="relative">
               <User className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
@@ -129,7 +115,7 @@ export default function LoginPage() {
                 name="username"
                 value={form.username}
                 onChange={handleChange}
-                placeholder="Enter Email or Mobile Number"
+                placeholder={t('auth.email')}
                 autoComplete="username"
                 className={`w-full !pl-10 !pr-4 py-2.5 rounded-xl border text-sm outline-none transition
                   ${errors.username ? 'border-red-400 focus:ring-red-200' : 'border-gray-200 focus:border-blue-500 focus:ring-blue-200'}
@@ -142,7 +128,7 @@ export default function LoginPage() {
           {/* Password */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1.5">
-              Password <span className="text-red-500">*</span>
+              {t('auth.password')} <span className="text-red-500">*</span>
             </label>
             <div className="relative">
               <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
@@ -151,7 +137,7 @@ export default function LoginPage() {
                 name="password"
                 value={form.password}
                 onChange={handleChange}
-                placeholder="Enter Password"
+                placeholder={t('auth.password')}
                 autoComplete="current-password"
                 className={`w-full !pl-10 !pr-11 py-2.5 rounded-xl border text-sm outline-none transition
                   ${errors.password ? 'border-red-400 focus:ring-red-200' : 'border-gray-200 focus:border-blue-500 focus:ring-blue-200'}
@@ -182,7 +168,7 @@ export default function LoginPage() {
               <span>Remember Me</span>
             </label>
             <Link to="/home" className="text-blue-600 font-semibold hover:underline">
-              Forgot Password?
+              {t('auth.forgotPassword')}
             </Link>
           </div>
 
@@ -200,12 +186,12 @@ export default function LoginPage() {
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                 </svg>
-                Signing in…
+                {t('common.loading')}
               </>
             ) : (
               <>
                 <LogIn className="h-4 w-4" />
-                Sign In
+                {t('auth.signIn')}
               </>
             )}
           </button>
@@ -213,9 +199,9 @@ export default function LoginPage() {
           {/* Links */}
           <div className="pt-2 text-center space-y-2">
             <p className="text-sm text-gray-500">
-              Don&apos;t have an account?{' '}
+              {t('auth.dontHaveAccount')}{' '}
               <Link to="/register" className="text-blue-600 font-semibold hover:underline">
-                Register as Patient
+                {t('auth.registerNow')}
               </Link>
             </p>
             <Link
@@ -223,7 +209,7 @@ export default function LoginPage() {
               className="inline-flex items-center gap-1 text-sm text-gray-400 hover:text-gray-600 transition"
             >
               <ArrowLeft className="h-3.5 w-3.5" />
-              Back to Home
+              {t('common.back')}
             </Link>
           </div>
         </form>

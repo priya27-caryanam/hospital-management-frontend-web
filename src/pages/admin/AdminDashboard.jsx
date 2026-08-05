@@ -6,6 +6,7 @@
  */
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import {
   Building2,
   UserPlus,
@@ -25,6 +26,7 @@ import StatsCard from '../../components/common/StatsCard';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 
 export default function AdminDashboard() {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const navigate = useNavigate();
 
@@ -43,26 +45,26 @@ export default function AdminDashboard() {
         setDepartmentCount(deptRes.data?.length || 0);
         setStats(statsRes.data);
       } catch (err) {
-        toast.error('Failed to load dashboard statistics');
+        toast.error(t('common.error'));
         console.error(err);
       } finally {
         setLoading(false);
       }
     };
     fetchStats();
-  }, []);
+  }, [t]);
 
   /** Quick action buttons for common admin tasks */
   const quickActions = [
-    { label: 'Manage Departments', icon: Building2, path: '/admin/departments' },
-    { label: 'Register Doctor', icon: Stethoscope, path: '/admin/register-doctor' },
-    { label: 'Register Nurse', icon: HeartPulse, path: '/admin/register-nurse' },
-    { label: 'Register Receptionist', icon: UserPlus, path: '/admin/register-receptionist' },
-    { label: 'Register Pharmacist', icon: Pill, path: '/admin/register-pharmacist' },
-    { label: 'Register Lab Tech', icon: TestTube, path: '/admin/register-lab-technician' },
-    { label: 'Search Patients', icon: Users, path: '/admin/patients' },
-    { label: 'Appointments', icon: CalendarCheck, path: '/admin/appointments' },
-    { label: 'Billing & Revenue', icon: Receipt, path: '/admin/billing' },
+    { label: t('nav.manageDepartments'), icon: Building2, path: '/admin/departments' },
+    { label: t('nav.registerDoctor'), icon: Stethoscope, path: '/admin/register-doctor' },
+    { label: t('nav.registerNurse'), icon: HeartPulse, path: '/admin/register-nurse' },
+    { label: t('nav.registerReceptionist'), icon: UserPlus, path: '/admin/register-receptionist' },
+    { label: t('nav.registerPharmacist'), icon: Pill, path: '/admin/register-pharmacist' },
+    { label: t('nav.registerLabTech'), icon: TestTube, path: '/admin/register-lab-technician' },
+    { label: t('nav.patientSearch'), icon: Users, path: '/admin/patients' },
+    { label: t('nav.appointments'), icon: CalendarCheck, path: '/admin/appointments' },
+    { label: t('nav.billing'), icon: Receipt, path: '/admin/billing' },
   ];
 
   if (loading) return <LoadingSpinner fullPage />;
@@ -72,85 +74,85 @@ export default function AdminDashboard() {
       {/* ─── Welcome Header ─── */}
       <div className="rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 p-8 text-white shadow-lg">
         <h1 className="text-3xl font-bold">
-          Welcome back, {user?.name || 'Admin'} 👋
+          {t('admin.welcomeAdmin', { name: user?.name || 'Admin' })}
         </h1>
         <p className="mt-2 text-blue-100">
-          Click any metric card below to open its dedicated management directory
+          {t('admin.dashboardSubtitle')}
         </p>
       </div>
 
       {/* ─── Metric Cards Grid ─── */}
       <div>
         <h2 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">
-          Hospital Statistics & Overview
+          {t('admin.statsOverview')}
         </h2>
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           <StatsCard
             icon={Building2}
-            label="Total Departments"
+            label={t('admin.totalDepartments')}
             value={departmentCount}
             color="blue"
             onClick={() => navigate('/admin/departments')}
           />
           <StatsCard
             icon={Users}
-            label="Total Patients"
+            label={t('admin.totalPatients')}
             value={stats?.totalPatients ?? 0}
             color="cyan"
             onClick={() => navigate('/admin/patients')}
           />
           <StatsCard
             icon={Stethoscope}
-            label="Total Doctors"
+            label={t('admin.totalDoctors')}
             value={stats?.totalDoctors ?? 0}
             color="green"
             onClick={() => navigate('/admin/register-doctor')}
           />
           <StatsCard
             icon={HeartPulse}
-            label="Total Nurses"
+            label={t('admin.totalNurses')}
             value={stats?.totalNurses ?? 0}
             color="purple"
             onClick={() => navigate('/admin/register-nurse')}
           />
           <StatsCard
             icon={UserPlus}
-            label="Total Receptionists"
+            label={t('admin.totalReceptionists')}
             value={stats?.totalReceptionists ?? 0}
             color="amber"
             onClick={() => navigate('/admin/register-receptionist')}
           />
           <StatsCard
             icon={TestTube}
-            label="Total Lab Techs"
+            label={t('admin.totalLabTechs')}
             value={stats?.totalLabTechnicians ?? 0}
             color="rose"
             onClick={() => navigate('/admin/register-lab-technician')}
           />
           <StatsCard
             icon={Pill}
-            label="Total Pharmacists"
+            label={t('admin.totalPharmacists')}
             value={stats?.totalPharmacists ?? 0}
             color="indigo"
             onClick={() => navigate('/admin/register-pharmacist')}
           />
           <StatsCard
             icon={CalendarCheck}
-            label="Total Appointments"
+            label={t('admin.totalAppointments')}
             value={stats?.totalAppointments ?? 0}
             color="blue"
             onClick={() => navigate('/admin/appointments')}
           />
           <StatsCard
             icon={Pill}
-            label="Total Medicines Catalog"
+            label={t('admin.totalMedicines')}
             value={stats?.totalMedicines ?? 0}
             color="green"
             onClick={() => navigate('/admin/medicines')}
           />
           <StatsCard
             icon={Receipt}
-            label="Total Revenue"
+            label={t('admin.totalRevenue')}
             value={stats?.totalRevenue !== undefined && stats?.totalRevenue !== null ? `₹${stats.totalRevenue}` : '₹0'}
             color="amber"
             onClick={() => navigate('/admin/billing')}
@@ -160,7 +162,7 @@ export default function AdminDashboard() {
 
       {/* ─── Quick Actions Grid ─── */}
       <div>
-        <h2 className="mb-4 text-lg font-semibold text-slate-800">Quick Actions</h2>
+        <h2 className="mb-4 text-lg font-semibold text-slate-800">{t('admin.quickActions')}</h2>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {quickActions.map((action) => {
             const Icon = action.icon;
@@ -175,7 +177,7 @@ export default function AdminDashboard() {
                 </div>
                 <div>
                   <p className="text-sm font-semibold text-slate-800">{action.label}</p>
-                  <p className="text-xs text-slate-400">Click to navigate</p>
+                  <p className="text-xs text-slate-400">{t('admin.clickToNavigate')}</p>
                 </div>
               </button>
             );

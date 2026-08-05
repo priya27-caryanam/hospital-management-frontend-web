@@ -4,6 +4,7 @@
  */
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import {
   Stethoscope,
   Building2,
@@ -30,6 +31,7 @@ import LoadingSpinner from '../../components/common/LoadingSpinner';
 import StatsCard from '../../components/common/StatsCard';
 
 export default function DoctorDashboard() {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const navigate = useNavigate();
 

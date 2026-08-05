@@ -5,6 +5,7 @@
  */
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import {
   Activity,
   PhoneCall,
@@ -21,6 +22,7 @@ import {
 } from 'lucide-react';
 
 export default function Footer() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [subscribed, setSubscribed] = useState(false);
@@ -80,8 +82,8 @@ export default function Footer() {
               <Activity className="h-6 w-6" />
             </div>
             <div>
-              <span className="text-2xl font-bold text-white tracking-tight">HMS</span>
-              <span className="text-xs block text-blue-400 font-semibold tracking-wider uppercase">Health Management System</span>
+              <span className="text-2xl font-bold text-white tracking-tight">{t('common.appName')}</span>
+              <span className="text-xs block text-blue-400 font-semibold tracking-wider uppercase">{t('common.systemTitle')}</span>
             </div>
           </div>
 

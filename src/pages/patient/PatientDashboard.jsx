@@ -5,6 +5,7 @@
  */
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../context/AuthContext';
 import { Calendar, ClipboardList, Receipt, Stethoscope, ArrowRight, TestTube, CheckCircle, HeartPulse, XCircle, Clock, FileCheck, CreditCard, Bell, ShieldAlert, AlertTriangle, X, Printer, Download } from 'lucide-react';
 import dashboardApi from '../../api/dashboardApi';
@@ -18,6 +19,7 @@ import LoadingSpinner from '../../components/common/LoadingSpinner';
 import PatientNotificationsModal from '../../components/patient/PatientNotificationsModal';
 
 export default function PatientDashboard() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { user } = useAuth();
   const [stats, setStats] = useState(null);

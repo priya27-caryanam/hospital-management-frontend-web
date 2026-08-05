@@ -4,11 +4,13 @@
  */
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { Pill, AlertTriangle, CheckCircle, Package } from 'lucide-react';
 import dashboardApi from '../../api/dashboardApi';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 
 export default function PharmacistDashboard() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);

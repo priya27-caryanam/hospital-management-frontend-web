@@ -4,6 +4,7 @@
  * Collapsible on mobile via hamburger menu
  */
 import { NavLink } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../context/AuthContext';
 import {
   LayoutDashboard, Building2, UserPlus, Users, CalendarDays,
@@ -11,62 +12,63 @@ import {
   Search, HeartPulse, LogOut, X, Activity, Pill, TestTube, Package, FlaskConical,
 } from 'lucide-react';
 
-/** Navigation items per role */
+/** Navigation items per role with translation keys */
 const roleNavItems = {
   ADMIN: [
-    { path: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { path: '/admin/departments', label: 'Manage Departments', icon: Building2 },
-    { path: '/admin/specializations', label: 'Manage Specializations', icon: Building2 },
-    { path: '/admin/register-doctor', label: 'Register Doctor', icon: UserPlus },
-    { path: '/admin/register-nurse', label: 'Register Nurse', icon: UserPlus },
-    { path: '/admin/register-receptionist', label: 'Register Receptionist', icon: UserPlus },
-    { path: '/admin/register-pharmacist', label: 'Register Pharmacist', icon: Pill },
-    { path: '/admin/register-lab-technician', label: 'Register Lab Tech', icon: TestTube },
+    { path: '/admin/dashboard', key: 'nav.dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { path: '/admin/departments', key: 'nav.manageDepartments', label: 'Manage Departments', icon: Building2 },
+    { path: '/admin/specializations', key: 'nav.manageSpecializations', label: 'Manage Specializations', icon: Building2 },
+    { path: '/admin/register-doctor', key: 'nav.registerDoctor', label: 'Register Doctor', icon: UserPlus },
+    { path: '/admin/register-nurse', key: 'nav.registerNurse', label: 'Register Nurse', icon: UserPlus },
+    { path: '/admin/register-receptionist', key: 'nav.registerReceptionist', label: 'Register Receptionist', icon: UserPlus },
+    { path: '/admin/register-pharmacist', key: 'nav.registerPharmacist', label: 'Register Pharmacist', icon: Pill },
+    { path: '/admin/register-lab-technician', key: 'nav.registerLabTech', label: 'Register Lab Tech', icon: TestTube },
   ],
   DOCTOR: [
-    { path: '/doctor/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { path: '/doctor/appointments', label: 'My Appointments & Lab Orders', icon: CalendarDays },
-    { path: '/doctor/prescriptions', label: 'Add Prescription', icon: ClipboardList },
-    { path: '/doctor/my-availability', label: 'My Availability', icon: CalendarDays },
-    { path: '/doctor/profile', label: 'My Profile', icon: UserCircle },
+    { path: '/doctor/dashboard', key: 'nav.dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { path: '/doctor/appointments', key: 'nav.myAppointmentsAndLab', label: 'My Appointments & Lab Orders', icon: CalendarDays },
+    { path: '/doctor/prescriptions', key: 'nav.addPrescription', label: 'Add Prescription', icon: ClipboardList },
+    { path: '/doctor/my-availability', key: 'nav.myAvailability', label: 'My Availability', icon: CalendarDays },
+    { path: '/doctor/profile', key: 'nav.myProfile', label: 'My Profile', icon: UserCircle },
   ],
   NURSE: [
-    { path: '/nurse/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { path: '/nurse/profile', label: 'My Profile', icon: UserCircle },
-    { path: '/nurse/patients', label: 'Assigned Patients', icon: Users },
+    { path: '/nurse/dashboard', key: 'nav.dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { path: '/nurse/profile', key: 'nav.myProfile', label: 'My Profile', icon: UserCircle },
+    { path: '/nurse/patients', key: 'nav.assignedPatients', label: 'Assigned Patients', icon: Users },
   ],
   RECEPTIONIST: [
-    { path: '/receptionist/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { path: '/receptionist/availability', label: 'Daily Doctor Availability', icon: CalendarDays },
-    { path: '/receptionist/patients', label: 'Patient Search', icon: Search },
-    { path: '/receptionist/offline-registration', label: 'Offline Patient Registration', icon: UserPlus },
-    { path: '/receptionist/book-walkin', label: 'Book Walk-in Appointment', icon: CalendarDays },
-    { path: '/receptionist/online-requests', label: 'Online Appointment Requests', icon: ClipboardList },
-    { path: '/receptionist/billing', label: 'Billing', icon: Receipt },
+    { path: '/receptionist/dashboard', key: 'nav.dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { path: '/receptionist/availability', key: 'nav.dailyAvailability', label: 'Daily Doctor Availability', icon: CalendarDays },
+    { path: '/receptionist/patients', key: 'nav.patientSearch', label: 'Patient Search', icon: Search },
+    { path: '/receptionist/offline-registration', key: 'nav.offlineRegistration', label: 'Offline Patient Registration', icon: UserPlus },
+    { path: '/receptionist/book-walkin', key: 'nav.bookWalkin', label: 'Book Walk-in Appointment', icon: CalendarDays },
+    { path: '/receptionist/online-requests', key: 'nav.onlineRequests', label: 'Online Appointment Requests', icon: ClipboardList },
+    { path: '/receptionist/billing', key: 'nav.billing', label: 'Billing', icon: Receipt },
   ],
   PHARMACIST: [
-    { path: '/pharmacist/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { path: '/pharmacist/prescriptions', label: 'Pending Queue', icon: Pill },
-    { path: '/pharmacist/medicines', label: 'Manage Medicines', icon: Package },
+    { path: '/pharmacist/dashboard', key: 'nav.dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { path: '/pharmacist/prescriptions', key: 'nav.pendingQueue', label: 'Pending Queue', icon: Pill },
+    { path: '/pharmacist/medicines', key: 'nav.manageMedicines', label: 'Manage Medicines', icon: Package },
   ],
   LAB_TECHNICIAN: [
-    { path: '/lab/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { path: '/lab/orders', label: 'Lab Orders Queue', icon: FlaskConical },
-    { path: '/lab/reports', label: 'Lab Reports', icon: TestTube },
+    { path: '/lab/dashboard', key: 'nav.dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { path: '/lab/orders', key: 'nav.labOrdersQueue', label: 'Lab Orders Queue', icon: FlaskConical },
+    { path: '/lab/reports', key: 'nav.labReports', label: 'Lab Reports', icon: TestTube },
   ],
   PATIENT: [
-    { path: '/patient/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { path: '/patient/profile', label: 'My Profile', icon: UserCircle },
-    { path: '/patient/doctors', label: 'Search Doctor', icon: Stethoscope },
-    { path: '/patient/book-appointment', label: 'Book Appointment', icon: CalendarDays },
-    { path: '/patient/appointments', label: 'My Appointments', icon: CalendarDays },
-    { path: '/patient/prescriptions', label: 'Prescriptions', icon: ClipboardList },
-    { path: '/patient/lab-reports', label: 'Lab Reports', icon: TestTube },
-    { path: '/patient/bills', label: 'My Bills', icon: Receipt },
+    { path: '/patient/dashboard', key: 'nav.dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { path: '/patient/profile', key: 'nav.myProfile', label: 'My Profile', icon: UserCircle },
+    { path: '/patient/doctors', key: 'nav.searchDoctor', label: 'Search Doctor', icon: Stethoscope },
+    { path: '/patient/book-appointment', key: 'nav.bookAppointment', label: 'Book Appointment', icon: CalendarDays },
+    { path: '/patient/appointments', key: 'nav.myAppointments', label: 'My Appointments', icon: CalendarDays },
+    { path: '/patient/prescriptions', key: 'nav.prescriptions', label: 'Prescriptions', icon: ClipboardList },
+    { path: '/patient/lab-reports', key: 'nav.labReports', label: 'Lab Reports', icon: TestTube },
+    { path: '/patient/bills', key: 'nav.myBills', label: 'My Bills', icon: Receipt },
   ],
 };
 
 export default function Sidebar({ isOpen, onClose }) {
+  const { t } = useTranslation();
   const { role, logout } = useAuth();
   const navItems = roleNavItems[role] || [];
 
@@ -90,8 +92,8 @@ export default function Sidebar({ isOpen, onClose }) {
               <Activity className="h-5 w-5 text-white" />
             </div>
             <div>
-              <h1 className="text-sm font-bold text-white tracking-wide">HMS</h1>
-              <p className="text-[10px] text-slate-400 uppercase tracking-widest">Hospital System</p>
+              <h1 className="text-sm font-bold text-white tracking-wide">{t('common.appName')}</h1>
+              <p className="text-[10px] text-slate-400 uppercase tracking-widest">{t('common.hospitalSystem')}</p>
             </div>
           </div>
           <button onClick={onClose} className="rounded-lg p-1 text-slate-400 hover:text-white hover:bg-slate-700 lg:hidden transition-colors">
@@ -115,7 +117,7 @@ export default function Sidebar({ isOpen, onClose }) {
               }
             >
               <item.icon className="h-4.5 w-4.5 flex-shrink-0" />
-              <span>{item.label}</span>
+              <span>{t(item.key, item.label)}</span>
             </NavLink>
           ))}
         </nav>
@@ -127,7 +129,7 @@ export default function Sidebar({ isOpen, onClose }) {
             className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-red-400 hover:bg-red-500/10 hover:text-red-300 transition-all duration-200"
           >
             <LogOut className="h-4.5 w-4.5" />
-            <span>Logout</span>
+            <span>{t('common.logout')}</span>
           </button>
         </div>
       </aside>

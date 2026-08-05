@@ -4,11 +4,13 @@
  */
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { TestTube, Clock, CheckCircle, FileCheck, ArrowRight } from 'lucide-react';
 import dashboardApi from '../../api/dashboardApi';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 
 export default function LabDashboard() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);

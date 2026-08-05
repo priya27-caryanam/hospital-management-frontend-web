@@ -6,6 +6,7 @@
  */
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import {
   Activity,
   CalendarCheck,
@@ -34,6 +35,7 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import Footer from '../components/layout/Footer';
+import LanguageSelector from '../components/common/LanguageSelector';
 
 /** Medical Departments Data */
 const DEPARTMENTS = [
@@ -237,6 +239,7 @@ export default function HomePage() {
 
           {/* Right Action Buttons */}
           <div className="flex items-center gap-3">
+            <LanguageSelector />
             <button
               onClick={() => navigate('/login')}
               className="px-5 py-2.5 text-sm font-semibold text-slate-700 border border-slate-300 rounded-xl hover:bg-slate-100 hover:text-blue-600 transition-all cursor-pointer"

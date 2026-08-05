@@ -3,10 +3,12 @@
  * Displays hospital branding, user role, real-time notification bell telemetry, and logout
  */
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Menu, Bell, LogOut } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import notificationApi from '../../api/notificationApi';
 import HospitalNotificationsModal from '../common/HospitalNotificationsModal';
+import LanguageSelector from '../common/LanguageSelector';
 
 /** Role badge color mapping */
 const roleBadgeColors = {
@@ -20,6 +22,7 @@ const roleBadgeColors = {
 };
 
 export default function Navbar({ onMenuToggle }) {
+  const { t } = useTranslation();
   const { user, logout } = useAuth();
   const badgeColor = roleBadgeColors[user?.role] || 'bg-slate-100 text-slate-700';
 
@@ -96,13 +99,16 @@ export default function Navbar({ onMenuToggle }) {
         </button>
         <div className="hidden sm:block">
           <h2 className="text-lg font-semibold text-slate-800">
-            Hospital Management System
+            {t('common.systemTitle')}
           </h2>
         </div>
       </div>
 
-      {/* Right — User info + Notification Bell + Logout */}
+      {/* Right — Language Selector + User info + Notification Bell + Logout */}
       <div className="flex items-center gap-3">
+        {/* Language Switcher */}
+        <LanguageSelector />
+
         {/* Real-time Hospital Notification Bell */}
         <button
           onClick={() => setNotificationsOpen((prev) => !prev)}

@@ -8,6 +8,7 @@
  */
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import {
   Search, CalendarDays, Receipt, HeartPulse,
   Users, Clock, UserCircle, ArrowRight, CheckCircle, AlertCircle, XCircle, UserPlus,
@@ -21,6 +22,7 @@ import LoadingSpinner from '../../components/common/LoadingSpinner';
 import StatsCard from '../../components/common/StatsCard';
 
 export default function ReceptionistDashboard() {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const navigate = useNavigate();
   const [profile, setProfile] = useState(null);
